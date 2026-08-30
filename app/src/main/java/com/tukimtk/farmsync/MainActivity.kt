@@ -37,17 +37,19 @@ import com.tukimtk.farmsync.ui.StorageConfigDialog
 import com.tukimtk.farmsync.ui.SuccessFeedbackDialog
 
 class MainActivity : ComponentActivity() {
-    private var incomingZipUriState = mutableStateOf<Uri?>(null)
+    private var incomingZipUri: Uri? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        handleIncomingIntent(intent)
+        if (intent?.action == Intent.ACTION_VIEW) {
+            incomingZipUri = intent.data
+        }
 
         setContent {
             FarmSyncAppTheme {
                 MainAppScaffold(
-                    incomingZipUri = incomingZipUriState.value,
-                    onClearIncomingZip = { incomingZipUriState.value = null }
+                    incomingZipUri = incomingZipUri,
+                    onClearIncomingZip = { incomingZipUri = null }
                 )
             }
         }
@@ -55,14 +57,15 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
-        handleIncomingIntent(intent)
-    }
-
-    private fun handleIncomingIntent(intent: Intent?) {
         if (intent?.action == Intent.ACTION_VIEW) {
-            val uri = intent.data
-            if (uri != null) {
-                incomingZipUriState.value = uri
+            incomingZipUri = intent.data
+            setContent {
+                FarmSyncAppTheme {
+                    MainAppScaffold(
+                        incomingZipUri = incomingZipUri,
+                        onClearIncomingZip = { incomingZipUri = null }
+                    )
+                }
             }
         }
     }
