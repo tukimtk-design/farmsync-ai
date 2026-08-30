@@ -36,11 +36,29 @@ import com.tukimtk.farmsync.ui.ShizukuOnboardingScreen
 import com.tukimtk.farmsync.ui.StorageConfigDialog
 import com.tukimtk.farmsync.ui.SuccessFeedbackDialog
 
+import rikka.shizuku.Shizuku
+
 class MainActivity : ComponentActivity() {
     private var incomingZipUri: Uri? = null
 
+    private val binderReceivedListener = Shizuku.OnBinderReceivedListener {
+        // Shizuku binder received, force recomposition if needed
+    }
+
+    private val binderDeadListener = Shizuku.OnBinderDeadListener {
+        // Shizuku binder dead
+    }
+
+    private val requestPermissionResultListener = Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
+        // Permission result received
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Shizuku.addBinderReceivedListener(binderReceivedListener)
+        Shizuku.addBinderDeadListener(binderDeadListener)
+        Shizuku.addRequestPermissionResultListener(requestPermissionResultListener)
+
         if (intent?.action == Intent.ACTION_VIEW) {
             incomingZipUri = intent.data
         }
@@ -68,6 +86,13 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        Shizuku.removeBinderReceivedListener(binderReceivedListener)
+        Shizuku.removeBinderDeadListener(binderDeadListener)
+        Shizuku.removeRequestPermissionResultListener(requestPermissionResultListener)
     }
 }
 

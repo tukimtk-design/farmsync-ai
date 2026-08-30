@@ -36,8 +36,35 @@ fun ShizukuOnboardingScreen() {
         isPermissionGranted = bridge.isPermissionGranted()
     }
 
-    LaunchedEffect(Unit) {
+    DisposableEffect(Unit) {
+        val binderReceivedListener = rikka.shizuku.Shizuku.OnBinderReceivedListener { refreshStatus() }
+        val binderDeadListener = rikka.shizuku.Shizuku.OnBinderDeadListener { refreshStatus() }
+        val permissionListener = rikka.shizuku.Shizuku.OnRequestPermissionResultListener { _, _ -> refreshStatus() }
+
+        rikka.shizuku.Shizuku.addBinderReceivedListener(binderReceivedListener)
+        rikka.shizuku.Shizuku.addBinderDeadListener(binderDeadListener)
+        rikka.shizuku.Shizuku.addRequestPermissionResultListener(permissionListener)
+
         refreshStatus()
+
+        onDispose {
+            rikka.shizuku.Shizuku.removeBinderReceivedListener(binderReceivedListener)
+            rikka.shizuku.Shizuku.removeBinderDeadListener(binderDeadListener)
+            rikka.shizuku.Shizuku.removeRequestPermissionResultListener(permissionListener)
+        }
+    }
+
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                refreshStatus()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
 
     Column(
