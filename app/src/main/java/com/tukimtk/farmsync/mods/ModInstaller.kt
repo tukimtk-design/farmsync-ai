@@ -2,6 +2,7 @@ package com.tukimtk.farmsync.mods
 
 import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
@@ -27,12 +28,30 @@ class ModInstaller(private val context: Context) {
                 return ModInstallResult(false, "", "Unknown", "Unknown", "Unknown", 0, "Cannot open file stream")
             }
 
+            // 1. Get real file display name from ContentResolver
+            var realFileName: String? = null
+            try {
+                context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (nameIndex != -1 && cursor.moveToFirst()) {
+                        realFileName = cursor.getString(nameIndex)
+                    }
+                }
+            } catch (_: Exception) {}
+
+            val cleanFileName = (realFileName ?: uri.lastPathSegment ?: "Custom_Mod")
+                .substringAfterLast("/")
+                .removeSuffix(".zip")
+                .replace(Regex("-\\d+.*"), "") // Remove Nexus IDs like "-7286-2-5-6"
+                .replace("_", " ")
+                .trim()
+
             val modsDir = File(context.getExternalFilesDir(null), "Mods").apply { mkdirs() }
 
             val zipIn = ZipInputStream(inputStream)
             var entry = zipIn.nextEntry
             var fileCount = 0
-            var manifestContent: String? = null
+            val manifestCandidates = mutableListOf<String>()
 
             val buffer = ByteArray(8192)
 
@@ -60,7 +79,7 @@ class ModInstaller(private val context: Context) {
                     fileCount++
 
                     if (entryName.endsWith("manifest.json", ignoreCase = true)) {
-                        manifestContent = outFile.readText()
+                        manifestCandidates.add(outFile.readText())
                     }
                 }
                 zipIn.closeEntry()
@@ -68,34 +87,51 @@ class ModInstaller(private val context: Context) {
             }
             zipIn.close()
 
-            // Parse manifest if found
-            var cleanFileName = (uri.lastPathSegment ?: "Mod_${System.currentTimeMillis()}")
-                .substringAfterLast("/")
-                .removeSuffix(".zip")
-            
-            var modName = cleanFileName
+            // 2. Parse manifest with BOM cleaning & Regex Fallback
+            var modName = cleanFileName.ifBlank { "Custom Mod" }
             var author = "Unknown Author"
             var version = "1.0.0"
-            var uniqueId = "custom_${cleanFileName.lowercase().replace(" ", "_")}"
+            var uniqueId = "mod_${cleanFileName.lowercase().replace(" ", "_")}"
 
-            manifestContent?.let { jsonStr ->
-                try {
-                    val json = JSONObject(jsonStr)
-                    modName = json.optString("Name", modName)
-                    author = json.optString("Author", author)
-                    version = json.optString("Version", version)
-                    uniqueId = json.optString("UniqueID", uniqueId)
-                } catch (_: Exception) {}
+            // Look through all found manifests (prioritizing main CP or largest manifest)
+            for (rawManifest in manifestCandidates) {
+                val parsed = parseManifest(rawManifest)
+                if (parsed != null) {
+                    // If modName was raw numeric ID or generic, replace with parsed
+                    if (modName == cleanFileName || modName.all { it.isDigit() }) {
+                        modName = parsed.name
+                        author = parsed.author
+                        version = parsed.version
+                        uniqueId = parsed.uniqueId
+                    }
+                    // If we found a main Content Patcher or Expansion manifest, keep it as primary
+                    if (parsed.name.contains("Ridgeside", ignoreCase = true) ||
+                        parsed.name.contains("Expanded", ignoreCase = true) ||
+                        !parsed.name.startsWith("[")) {
+                        modName = parsed.name
+                        author = parsed.author
+                        version = parsed.version
+                        uniqueId = parsed.uniqueId
+                        break
+                    }
+                }
+            }
+
+            // Cleanup mod name if it has brackets like [CP] Ridgeside Village -> Ridgeside Village
+            val displayModName = if (modName.startsWith("[") && modName.contains("]")) {
+                modName.substringAfter("]").trim()
+            } else {
+                modName
             }
 
             ModInstallResult(
                 isSuccess = true,
                 uniqueId = uniqueId,
-                modName = modName,
+                modName = displayModName.ifBlank { cleanFileName },
                 author = author,
                 version = version,
                 extractedFilesCount = fileCount,
-                message = "Mod '$modName' ($version) installed successfully!"
+                message = "Mod '$displayModName' ($version) installed successfully! ($fileCount files extracted)"
             )
         } catch (e: Exception) {
             ModInstallResult(
@@ -108,5 +144,41 @@ class ModInstaller(private val context: Context) {
                 message = "Failed to install mod: ${e.localizedMessage ?: e.message}"
             )
         }
+    }
+
+    private data class ParsedManifest(val name: String, val author: String, val version: String, val uniqueId: String)
+
+    private fun parseManifest(rawJson: String): ParsedManifest? {
+        val clean = rawJson.replace("\uFEFF", "")
+            .replace(Regex("/\\*.*?\\*/", RegexOption.DOT_MATCHES_ALL), "")
+            .replace(Regex("//.*"), "")
+            .trim()
+
+        try {
+            val json = JSONObject(clean)
+            val name = json.optString("Name", "")
+            val author = json.optString("Author", "Unknown Author")
+            val version = json.optString("Version", "1.0.0")
+            val uniqueId = json.optString("UniqueID", "mod_${name.lowercase().replace(" ", "_")}")
+            if (name.isNotBlank()) {
+                return ParsedManifest(name, author, version, uniqueId)
+            }
+        } catch (_: Exception) {}
+
+        // Fallback Regex
+        val nameRegex = Regex("\"Name\"\\s*:\\s*\"([^\"]+)\"", RegexOption.IGNORE_CASE)
+        val authorRegex = Regex("\"Author\"\\s*:\\s*\"([^\"]+)\"", RegexOption.IGNORE_CASE)
+        val versionRegex = Regex("\"Version\"\\s*:\\s*\"([^\"]+)\"", RegexOption.IGNORE_CASE)
+        val idRegex = Regex("\"UniqueID\"\\s*:\\s*\"([^\"]+)\"", RegexOption.IGNORE_CASE)
+
+        val name = nameRegex.find(rawJson)?.groupValues?.get(1)
+        if (name != null) {
+            val author = authorRegex.find(rawJson)?.groupValues?.get(1) ?: "Unknown Author"
+            val version = versionRegex.find(rawJson)?.groupValues?.get(1) ?: "1.0.0"
+            val uniqueId = idRegex.find(rawJson)?.groupValues?.get(1) ?: "mod_${name.lowercase().replace(" ", "_")}"
+            return ParsedManifest(name, author, version, uniqueId)
+        }
+
+        return null
     }
 }
