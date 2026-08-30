@@ -49,3 +49,8 @@
 ## 11. โครงสร้างรองรับ Android หลายแบรนด์และระบบปฏิบัติการเฉพาะ (Multi-Brand Android Support)
 * **Dynamic Path Resolver:** โครงสร้างการค้นหาและเข้าถึงไฟล์ `/Android/data/` ถูกออกแบบให้ยืดหยุ่น สามารถปรับตัวตามโครงสร้าง File System ที่อาจแตกต่างกันในมือถือแต่ละค่าย (เช่น Xiaomi, Samsung, Google Pixel)
 * **OS-Specific Optimizers:** ระบบมีโมดูลย่อยสำหรับจัดการ Background Service และการขอสิทธิ์ Battery No-Restrictions ที่ปรับแต่งมาเฉพาะสำหรับ OS แต่ละแบรนด์ (เช่น `HyperOsOptimizer` สำหรับ Xiaomi / HyperOS, `OneUiOptimizer` สำหรับ Samsung / OneUI) เพื่อให้การทำงานเบื้องหลัง (Auto-Sync) เสถียรที่สุดในทุกอุปกรณ์
+
+## 12. ส่วนต่อขยายสำหรับ PC & Steam Deck (SMAPI Companion Mod)
+* **SMAPI Lifecycle Engine (C#):** พัฒนา Mod ฝั่ง PC (`FarmSyncCompanion`) ที่ทำงานสอดคล้องกับ Lifecycle ของเกม เช่น `GameLaunched` (ตรวจสอบเซฟใหม่ตอนเข้าเกม), `Saved` (ซิงค์อัตโนมัติตอนเข้านอน), และ `ReturnedToTitle` (ตรวจเช็กความสมบูรณ์ตอนออกเกม)
+* **Asynchronous & Zero-Lag:** กระบวนการซิงค์เซฟบน PC จะทำงานแบบเบื้องหลัง (Asynchronous ผ่าน `Task.Run`) ทันทีที่วันใหม่ในเกมเริ่มขึ้น เพื่อรับประกันว่าหน้าจอเกมจะไม่ค้างหรือกระตุก (100% Zero-Lag)
+* **PC-Side Storage Drivers:** ตัว Mod ฝั่ง PC ถูกออกแบบให้รองรับการรับส่งไฟล์ (IStorageDriver) ผ่าน Local SMB (ซิงค์ผ่าน Wi-Fi บ้านโดยตรง), การตรวจจับพาธ OneDrive Local Folder อัตโนมัติ, และการเชื่อมต่อ Google Drive / WebDAV REST API
