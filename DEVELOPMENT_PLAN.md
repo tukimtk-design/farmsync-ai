@@ -36,3 +36,8 @@
 ## 8. ระบบเชิงพาณิชย์และ Google Play Store (Commercial & Distribution)
 * **Google Play In-App Billing:** เชื่อมต่อกับระบบชำระเงินของ Google (PlayBillingManager) สำหรับการปลดล็อกฟีเจอร์ระดับ Pro (Pro Unlock) เพื่อให้แอปพลิเคชันพร้อมสำหรับการวางจำหน่ายจริง
 * **Onboarding & Compliance:** มีหน้าสอนการตั้งค่า Shizuku (ShizukuOnboardingScreen) และการตั้งค่า API Key แบบทีละขั้นตอน เพื่อให้แอปผ่านข้อกำหนดการเข้าถึงข้อมูลของ Google Play Policy
+
+## 9. ระบบความปลอดภัยและป้องกันข้อมูลสูญหาย (Failsafe & Multi-Layer Verification)
+* **Save Collision Matrix (Multi-Layer Verification):** ระบบตรวจสอบไฟล์เซฟแบบหลายชั้นก่อนทำการซิงค์ โดยเปรียบเทียบทั้ง Timestamp และเวลาภายในเกม (In-Game Timeline) เพื่อป้องกันการนำเซฟที่เก่ากว่าไปเขียนทับเซฟที่ใหม่กว่าอย่างเด็ดขาด
+* **Rolling Snapshot Backup & Restore:** ระบบสำรองข้อมูลอัตโนมัติแบบ Zip ย้อนหลังหลายสล็อต (Rolling Backup) ทุกครั้งก่อนเริ่มขั้นตอนที่อาจมีความเสี่ยง (เช่น การเขียนทับไฟล์เซฟ หรือการติดตั้ง Mod) พร้อมระบบกู้คืน (Restore) สู่สถานะปกติในคลิกเดียวหากเกิดข้อผิดพลาด
+* **Advanced Error Handling & Failsafe:** กลไกการหยุดพักการซิงค์ทันที (Failsafe) พร้อมแจ้งเตือนผู้ใช้งานหากพบว่าไฟล์เสียหาย มีขนาดผิดปกติ หรือระบบเครือข่ายไม่เสถียร เพื่อรับประกันความปลอดภัยของข้อมูลผู้เล่นอย่างสูงสุด
