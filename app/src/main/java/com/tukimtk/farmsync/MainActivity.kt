@@ -8,8 +8,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,10 +35,8 @@ class MainActivity : ComponentActivity() {
 fun MainAppScaffold() {
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Dashboard", "Mods", "Shizuku", "Settings")
-    val snackbarHostState = remember { SnackbarHostState() }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             NavigationBar {
                 tabs.forEachIndexed { index, title ->
