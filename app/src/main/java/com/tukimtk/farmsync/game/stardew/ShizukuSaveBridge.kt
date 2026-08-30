@@ -7,6 +7,7 @@ import androidx.documentfile.provider.DocumentFile
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
+import java.lang.reflect.Method
 import rikka.shizuku.Shizuku
 
 data class RealSaveSlot(
@@ -22,25 +23,58 @@ data class RealSaveSlot(
 
 class ShizukuSaveBridge(private val context: Context) {
 
-    private val stardewSavePath = "/storage/emulated/0/Android/data/com.zane.stardewvalley/files/saves"
-    private val legacySavePath = "/storage/emulated/0/StardewValley/Saves"
+    private val searchPaths = listOf(
+        "/storage/emulated/0/Android/data/com.zane.stardewvalley/files/saves",
+        "/storage/emulated/0/Android/data/com.zane.stardewvalley/files",
+        "/storage/emulated/0/Android/data/com.zane.stardewvalley/saves",
+        "/storage/emulated/0/StardewValley/Saves",
+        "/storage/emulated/0/StardewValley"
+    )
 
-    fun isShizukuAvailable(): Boolean {
+    private var cachedNewProcessMethod: Method? = null
+
+    init {
+        try {
+            cachedNewProcessMethod = Shizuku::class.java.getDeclaredMethod(
+                "newProcess",
+                Array<String>::class.java,
+                Array<String>::class.java,
+                String::class.java
+            ).apply { isAccessible = true }
+        } catch (_: Exception) {}
+    }
+
+    fun isBinderAlive(): Boolean {
         return try {
-            Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+            Shizuku.pingBinder()
         } catch (_: Exception) {
             false
         }
     }
 
+    fun isPermissionGranted(): Boolean {
+        return try {
+            isBinderAlive() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun requestShizukuPermission(requestCode: Int = 1001) {
+        try {
+            if (isBinderAlive() && !isPermissionGranted()) {
+                Shizuku.requestPermission(requestCode)
+            }
+        } catch (_: Exception) {}
+    }
+
     /**
-     * Executes shell command via Shizuku or standard runtime fallback
+     * Executes shell command via Shizuku Process with reflection or standard fallback
      */
     fun execCommand(cmd: String): String {
         return try {
-            val process = if (isShizukuAvailable()) {
-                val newProcessMethod = Shizuku::class.java.getMethod("newProcess", Array<String>::class.java, Array<String>::class.java, String::class.java)
-                newProcessMethod.invoke(null, arrayOf("sh", "-c", cmd), null, null) as Process
+            val process = if (isPermissionGranted() && cachedNewProcessMethod != null) {
+                cachedNewProcessMethod!!.invoke(null, arrayOf("sh", "-c", cmd), null, null) as Process
             } else {
                 Runtime.getRuntime().exec(arrayOf("sh", "-c", cmd))
             }
@@ -51,72 +85,77 @@ class ShizukuSaveBridge(private val context: Context) {
     }
 
     /**
-     * Scans real save folders on device via Shizuku or direct files
+     * Scans real save folders on device across all possible Stardew Valley directories
      */
     fun scanRealSaves(): List<RealSaveSlot> {
         val list = mutableListOf<RealSaveSlot>()
 
-        // 1. Try Shizuku / ADB shell
-        if (isShizukuAvailable()) {
-            val output = execCommand("ls -1 $stardewSavePath")
-            if (output.isNotBlank()) {
-                val folders = output.split("\n").map { it.trim() }.filter { it.isNotBlank() }
-                for (folder in folders) {
-                    val infoContent = execCommand("cat $stardewSavePath/$folder/SaveGameInfo")
-                    if (infoContent.isNotBlank()) {
-                        val parsed = parseInfoContent(folder, "$stardewSavePath/$folder", infoContent)
-                        list.add(parsed)
+        for (basePath in searchPaths) {
+            if (isPermissionGranted()) {
+                val output = execCommand("ls -1 $basePath")
+                if (output.isNotBlank()) {
+                    val entries = output.split("\n").map { it.trim() }.filter { it.isNotBlank() }
+                    for (entry in entries) {
+                        val infoXml = execCommand("cat $basePath/$entry/SaveGameInfo")
+                        if (infoXml.isNotBlank() && (infoXml.contains("<SaveGame", ignoreCase = true) || infoXml.contains("<Farmer", ignoreCase = true))) {
+                            val parsed = parseInfoContent(entry, "$basePath/$entry", infoXml)
+                            if (list.none { it.folderName == parsed.folderName }) {
+                                list.add(parsed)
+                            }
+                        }
                     }
                 }
             }
-        }
 
-        // 2. Try legacy SDCard / non-scoped path
-        val legacyDir = File(legacySavePath)
-        if (legacyDir.exists() && legacyDir.isDirectory) {
-            legacyDir.listFiles()?.forEach { folder ->
-                if (folder.isDirectory) {
-                    val infoFile = File(folder, "SaveGameInfo")
-                    if (infoFile.exists()) {
-                        list.add(parseInfoContent(folder.name, folder.absolutePath, infoFile.readText()))
+            // Direct File API fallback
+            try {
+                val dir = File(basePath)
+                if (dir.exists() && dir.isDirectory) {
+                    dir.listFiles()?.forEach { folder ->
+                        if (folder.isDirectory) {
+                            val infoFile = File(folder, "SaveGameInfo")
+                            if (infoFile.exists()) {
+                                val parsed = parseInfoContent(folder.name, folder.absolutePath, infoFile.readText())
+                                if (list.none { it.folderName == parsed.folderName }) {
+                                    list.add(parsed)
+                                }
+                            }
+                        }
                     }
                 }
-            }
+            } catch (_: Exception) {}
         }
 
         return list
     }
 
     /**
-     * Writes updated XML to save folder via Shizuku or direct file IO
+     * Writes updated XML to save folder via Shizuku shell with full file permission
      */
     fun writeSaveWithProtection(slotPath: String, edits: EditableSaveData, editor: StardewSaveEditor): Boolean {
         return try {
-            if (isShizukuAvailable() && slotPath.startsWith("/storage")) {
-                val folderName = slotPath.substringAfterLast("/")
-                
-                // Read original XML files
+            val folderName = slotPath.substringAfterLast("/")
+
+            if (isPermissionGranted()) {
                 val originalMain = execCommand("cat $slotPath/$folderName")
                 val originalInfo = execCommand("cat $slotPath/SaveGameInfo")
 
-                if (originalMain.isNotBlank()) {
-                    val updatedMain = editor.applyEditsToXml(originalMain, edits)
-                    val updatedInfo = editor.applyEditsToXml(originalInfo.ifBlank { originalMain }, edits)
+                val updatedMain = editor.applyEditsToXml(originalMain.ifBlank { "<SaveGame></SaveGame>" }, edits)
+                val updatedInfo = editor.applyEditsToXml(originalInfo.ifBlank { updatedMain }, edits)
 
-                    // Write temp files to app private cache then copy via Shizuku
-                    val tempDir = File(context.cacheDir, "shizuku_temp").apply { mkdirs() }
-                    val tempMain = File(tempDir, folderName).apply { writeText(updatedMain) }
-                    val tempInfo = File(tempDir, "SaveGameInfo").apply { writeText(updatedInfo) }
+                val tempDir = File(context.cacheDir, "shizuku_temp").apply { mkdirs() }
+                val tempMain = File(tempDir, folderName).apply { writeText(updatedMain) }
+                val tempInfo = File(tempDir, "SaveGameInfo").apply { writeText(updatedInfo) }
 
-                    execCommand("cp ${tempMain.absolutePath} $slotPath/$folderName")
-                    execCommand("cp ${tempInfo.absolutePath} $slotPath/SaveGameInfo")
-                    execCommand("chmod 666 $slotPath/$folderName $slotPath/SaveGameInfo")
+                execCommand("cp ${tempMain.absolutePath} $slotPath/$folderName")
+                execCommand("cp ${tempInfo.absolutePath} $slotPath/SaveGameInfo")
+                execCommand("chmod 666 $slotPath/$folderName")
+                execCommand("chmod 666 $slotPath/SaveGameInfo")
 
-                    return true
-                }
+                return true
             }
 
-            // Direct File write fallback
+            // Fallback direct write
             val targetFolder = File(slotPath)
             if (targetFolder.exists() && targetFolder.isDirectory) {
                 return editor.saveToDirectory(targetFolder, edits)
