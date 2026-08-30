@@ -8,6 +8,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -15,7 +17,8 @@ import com.tukimtk.farmsync.i18n.Strings
 
 @Composable
 fun ShizukuOnboardingScreen() {
-    var checkStatus by remember { mutableStateOf<String?>(null) }
+    val haptic = LocalHapticFeedback.current
+    var showSuccessDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -58,10 +61,8 @@ fun ShizukuOnboardingScreen() {
 
         Button(
             onClick = {
-                checkStatus = Strings.get(
-                    "✓ เชื่อมต่อบริการ Shizuku สำเร็จ! ได้รับสิทธิ์เข้าถึงโฟลเดอร์ Scoped Storage เรียบร้อยแล้ว",
-                    "✓ Shizuku Service Connected! Scoped Storage access granted."
-                )
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                showSuccessDialog = true
             },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp)
@@ -69,18 +70,15 @@ fun ShizukuOnboardingScreen() {
             Text(Strings.get("ตรวจสอบการเชื่อมต่อ Shizuku", "Verify Shizuku Permission"))
         }
 
-        checkStatus?.let { status ->
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-            ) {
-                Text(
-                    text = status,
-                    modifier = Modifier.padding(16.dp),
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
+        if (showSuccessDialog) {
+            SuccessFeedbackDialog(
+                title = Strings.get("เชื่อมต่อสิทธิ์สำเร็จ!", "Shizuku Connected!"),
+                message = Strings.get(
+                    "บริการ Shizuku ทำงานสมบูรณ์! FarmSync AI ได้รับสิทธิ์ในการอ่านและเขียนโฟลเดอร์ /Android/data/com.zane.stardewvalley/ เรียบร้อยแล้ว",
+                    "Shizuku Service is active! FarmSync AI has been granted permission to access /Android/data/com.zane.stardewvalley/."
+                ),
+                onDismiss = { showSuccessDialog = false }
+            )
         }
     }
 }

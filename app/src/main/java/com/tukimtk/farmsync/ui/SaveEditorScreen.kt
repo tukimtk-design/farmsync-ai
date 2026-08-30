@@ -10,25 +10,37 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tukimtk.farmsync.data.SaveStateRepository
+import com.tukimtk.farmsync.game.stardew.EditableSaveData
 import com.tukimtk.farmsync.i18n.Strings
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SaveEditorScreen() {
-    var farmerName by remember { mutableStateOf("Tuki") }
-    var farmName by remember { mutableStateOf("Sunrise Peak") }
-    var money by remember { mutableStateOf("184500") }
-    var selectedSeason by remember { mutableStateOf("Summer") }
-    var dayOfMonth by remember { mutableFloatStateOf(14f) }
-    var year by remember { mutableStateOf("2") }
-    var maxHealth by remember { mutableFloatStateOf(100f) }
-    var maxStamina by remember { mutableFloatStateOf(270f) }
+    val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
+    val repo = remember { SaveStateRepository(context) }
 
-    var saveStatusMessage by remember { mutableStateOf<String?>(null) }
+    // Load initial persistent values
+    val initialData = remember { repo.loadSaveData() }
+
+    var farmerName by remember { mutableStateOf(initialData.characterName) }
+    var farmName by remember { mutableStateOf(initialData.farmName) }
+    var money by remember { mutableStateOf(initialData.money.toString()) }
+    var selectedSeason by remember { mutableStateOf(initialData.season) }
+    var dayOfMonth by remember { mutableFloatStateOf(initialData.dayOfMonth.toFloat()) }
+    var year by remember { mutableStateOf(initialData.year.toString()) }
+    var maxHealth by remember { mutableFloatStateOf(initialData.maxHealth.toFloat()) }
+    var maxStamina by remember { mutableFloatStateOf(initialData.maxStamina.toFloat()) }
+
+    var showSuccessDialog by remember { mutableStateOf(false) }
 
     val seasons = listOf("Spring", "Summer", "Fall", "Winter")
 
@@ -50,15 +62,15 @@ fun SaveEditorScreen() {
                 fontWeight = FontWeight.Bold
             )
             AssistChip(
-                onClick = { /* Backup info */ },
+                onClick = {},
                 label = { Text(Strings.get("🛡️ สำรองข้อมูลอัตโนมัติ", "🛡️ Auto-Backup")) }
             )
         }
 
         Text(
             text = Strings.get(
-                "ปรับแต่งค่าตัวละคร ฟาร์ม วันเวลา และเงินในเกมได้อย่างปลอดภัย โดยระบบจะสำรองข้อมูลเดิมเป็น Zip Snapshot ให้อัตโนมัติ",
-                "Safely customize player, farm, timeline, and money values. The system automatically creates a zip snapshot backup before saving."
+                "ปรับแต่งค่าตัวละคร ฟาร์ม วันเวลา และเงินในเกมได้อย่างปลอดภัย โดยระบบจะบันทึกค่าและสำรองไฟล์เดิมให้อัตโนมัติ",
+                "Safely customize player, farm, timeline, and money values. The system persists edits and creates an automated backup."
             ),
             fontSize = 13.sp,
             color = Color.Gray
@@ -110,18 +122,28 @@ fun SaveEditorScreen() {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             val current = money.toIntOrNull() ?: 0
                             money = (current + 50000).toString()
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        ),
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("+50,000g")
                     }
 
                     Button(
-                        onClick = { money = "999999" },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer),
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            money = "999999"
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        ),
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("Max (999k)")
@@ -143,7 +165,10 @@ fun SaveEditorScreen() {
                     seasons.forEach { season ->
                         FilterChip(
                             selected = selectedSeason == season,
-                            onClick = { selectedSeason = season },
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                selectedSeason = season
+                            },
                             label = {
                                 Text(
                                     when (season) {
@@ -213,10 +238,23 @@ fun SaveEditorScreen() {
         // Action Button: Save & Apply
         Button(
             onClick = {
-                saveStatusMessage = Strings.get(
-                    "✓ บันทึกค่าใหม่สำเร็จ! (สำรองไฟล์เดิมใน Rolling Backup เรียบร้อยแล้ว)",
-                    "✓ Changes applied successfully! (Original save backed up to Rolling Snapshot)"
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+
+                // 1. Persist data into storage
+                val updatedData = EditableSaveData(
+                    characterName = farmerName.ifBlank { "Tuki" },
+                    farmName = farmName.ifBlank { "Sunrise Peak" },
+                    money = money.toIntOrNull() ?: 184500,
+                    season = selectedSeason,
+                    dayOfMonth = dayOfMonth.toInt(),
+                    year = year.toIntOrNull() ?: 2,
+                    maxHealth = maxHealth.toInt(),
+                    maxStamina = maxStamina.toInt()
                 )
+                repo.persistSaveData(updatedData)
+
+                // 2. Show success dialog
+                showSuccessDialog = true
             },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
@@ -229,18 +267,16 @@ fun SaveEditorScreen() {
             )
         }
 
-        saveStatusMessage?.let { msg ->
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-            ) {
-                Text(
-                    text = msg,
-                    modifier = Modifier.padding(16.dp),
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
+        // Success Confirmation Dialog
+        if (showSuccessDialog) {
+            SuccessFeedbackDialog(
+                title = Strings.get("บันทึกการแก้ไขสำเร็จ!", "Save Edits Applied!"),
+                message = Strings.get(
+                    "ค่าเซฟเกมใหม่ถูกบันทึกเรียบร้อยแล้ว (ชื่อฟาร์ม: $farmName | เงิน: ${money}g | วันที่: $selectedSeason วันที่ ${dayOfMonth.toInt()} ปี $year) ข้อมูลจะยังคงอยู่แม้ปิดแอปแล้วเปิดใหม่",
+                    "Your farm save has been successfully updated and persisted (Farm: $farmName | Gold: ${money}g | Date: $selectedSeason Day ${dayOfMonth.toInt()} Year $year). Data will remain saved across app restarts."
+                ),
+                onDismiss = { showSuccessDialog = false }
+            )
         }
     }
 }

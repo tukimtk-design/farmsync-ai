@@ -17,9 +17,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tukimtk.farmsync.data.SaveStateRepository
 import com.tukimtk.farmsync.i18n.AppLanguage
 import com.tukimtk.farmsync.i18n.Strings
 import com.tukimtk.farmsync.ui.ApiKeyConfigDialog
@@ -27,6 +31,8 @@ import com.tukimtk.farmsync.ui.FarmDashboardScreen
 import com.tukimtk.farmsync.ui.ModManagerScreen
 import com.tukimtk.farmsync.ui.SaveEditorScreen
 import com.tukimtk.farmsync.ui.ShizukuOnboardingScreen
+import com.tukimtk.farmsync.ui.StorageConfigDialog
+import com.tukimtk.farmsync.ui.SuccessFeedbackDialog
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,6 +56,7 @@ enum class NavigationTab(val titleTh: String, val titleEn: String, val icon: Ima
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainAppScaffold() {
+    val haptic = LocalHapticFeedback.current
     var currentTab by remember { mutableStateOf(NavigationTab.DASHBOARD) }
     var showApiKeyDialog by remember { mutableStateOf(false) }
 
@@ -73,6 +80,7 @@ fun MainAppScaffold() {
                     // Language Switcher Toggle
                     OutlinedButton(
                         onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             Strings.currentLanguage = if (Strings.currentLanguage == AppLanguage.TH) AppLanguage.EN else AppLanguage.TH
                         },
                         modifier = Modifier.padding(end = 8.dp),
@@ -88,7 +96,10 @@ fun MainAppScaffold() {
                         )
                     }
 
-                    IconButton(onClick = { showApiKeyDialog = true }) {
+                    IconButton(onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        showApiKeyDialog = true
+                    }) {
                         Icon(Icons.Default.Settings, contentDescription = "BYOK API Key")
                     }
                 }
@@ -99,7 +110,10 @@ fun MainAppScaffold() {
                 NavigationTab.entries.forEach { tab ->
                     NavigationBarItem(
                         selected = currentTab == tab,
-                        onClick = { currentTab = tab },
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            currentTab = tab
+                        },
                         icon = { Icon(tab.icon, contentDescription = tab.titleEn) },
                         label = { Text(Strings.get(tab.titleTh, tab.titleEn), fontSize = 11.sp) }
                     )
@@ -130,6 +144,14 @@ fun MainAppScaffold() {
 
 @Composable
 fun SettingsTabContent(onOpenApiKey: () -> Unit) {
+    val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
+    val repo = remember { SaveStateRepository(context) }
+
+    var selectedStorage by remember { mutableStateOf(repo.getSelectedStorage()) }
+    var showStorageDialog by remember { mutableStateOf(false) }
+    var showSuccessToast by remember { mutableStateOf<String?>(null) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -147,7 +169,10 @@ fun SettingsTabContent(onOpenApiKey: () -> Unit) {
                 Text(Strings.get("🌐 ภาษาการแสดงผล (Language)", "🌐 Display Language"), fontWeight = FontWeight.SemiBold)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
-                        onClick = { Strings.currentLanguage = AppLanguage.TH },
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            Strings.currentLanguage = AppLanguage.TH
+                        },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (Strings.currentLanguage == AppLanguage.TH) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
                             contentColor = if (Strings.currentLanguage == AppLanguage.TH) Color.White else MaterialTheme.colorScheme.onSecondaryContainer
@@ -156,7 +181,10 @@ fun SettingsTabContent(onOpenApiKey: () -> Unit) {
                         Text("🇹🇭 ภาษาไทย")
                     }
                     Button(
-                        onClick = { Strings.currentLanguage = AppLanguage.EN },
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            Strings.currentLanguage = AppLanguage.EN
+                        },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (Strings.currentLanguage == AppLanguage.EN) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
                             contentColor = if (Strings.currentLanguage == AppLanguage.EN) Color.White else MaterialTheme.colorScheme.onSecondaryContainer
@@ -176,12 +204,18 @@ fun SettingsTabContent(onOpenApiKey: () -> Unit) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(Strings.get("📁 ผู้ให้บริการซิงค์ข้อมูล (Storage Provider)", "📁 Storage & Sync Provider"), fontWeight = FontWeight.SemiBold)
                 Text(
-                    Strings.get("ปัจจุบัน: Wi-Fi วงแลนในบ้าน SMB (ความเร็วตรง 1 Gbps)", "Current: Local Wi-Fi SMB (1 Gbps Direct)"),
+                    text = "${Strings.get("ปัจจุบัน", "Current")}: $selectedStorage",
                     color = Color.Gray,
                     fontSize = 14.sp
                 )
-                Button(onClick = { /* Change Provider */ }) {
-                    Text(Strings.get("เลือกคลาวด์ / พื้นที่จัดเก็บ", "Select Cloud / Storage Provider"))
+                Button(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        showStorageDialog = true
+                    },
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(Strings.get("⚙️ เลือกและตั้งค่า Cloud / SMB", "⚙️ Configure Cloud / Storage"))
                 }
             }
         }
@@ -198,11 +232,38 @@ fun SettingsTabContent(onOpenApiKey: () -> Unit) {
                     color = Color.Gray,
                     fontSize = 14.sp
                 )
-                Button(onClick = onOpenApiKey) {
-                    Text(Strings.get("ตั้งค่า API Key", "Configure API Key"))
+                Button(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onOpenApiKey()
+                    },
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(Strings.get("🔑 ตั้งค่า API Key", "🔑 Configure API Key"))
                 }
             }
         }
+    }
+
+    if (showStorageDialog) {
+        StorageConfigDialog(
+            currentSelection = selectedStorage,
+            onSave = { newStorage ->
+                repo.setSelectedStorage(newStorage)
+                selectedStorage = newStorage
+                showStorageDialog = false
+                showSuccessToast = Strings.get("บันทึกช่องทางซิงค์: $newStorage เรียบร้อยแล้ว", "Saved sync provider: $newStorage")
+            },
+            onDismiss = { showStorageDialog = false }
+        )
+    }
+
+    showSuccessToast?.let { msg ->
+        SuccessFeedbackDialog(
+            title = Strings.get("ตั้งค่าสำเร็จ!", "Configuration Saved!"),
+            message = msg,
+            onDismiss = { showSuccessToast = null }
+        )
     }
 }
 
