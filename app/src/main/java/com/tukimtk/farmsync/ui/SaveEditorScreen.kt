@@ -24,9 +24,12 @@ import androidx.compose.ui.unit.sp
 import com.tukimtk.farmsync.data.SaveStateRepository
 import com.tukimtk.farmsync.game.stardew.EditableSaveData
 import com.tukimtk.farmsync.game.stardew.RealSaveSlot
+import com.tukimtk.farmsync.game.stardew.SaveHealthReport
+import com.tukimtk.farmsync.game.stardew.SaveRescueManager
 import com.tukimtk.farmsync.game.stardew.ShizukuSaveBridge
 import com.tukimtk.farmsync.game.stardew.StardewSaveEditor
 import com.tukimtk.farmsync.i18n.Strings
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,11 +39,15 @@ fun SaveEditorScreen() {
     val repo = remember { SaveStateRepository(context) }
     val saveEditor = remember { StardewSaveEditor() }
     val bridge = remember { ShizukuSaveBridge(context) }
+    val rescueManager = remember { SaveRescueManager(context) }
 
     // Detected saves on device
     var realSaves by remember { mutableStateOf<List<RealSaveSlot>>(emptyList()) }
     var selectedRealSlot by remember { mutableStateOf<RealSaveSlot?>(null) }
     var selectedTreeUri by remember { mutableStateOf<Uri?>(null) }
+
+    var healthReport by remember { mutableStateOf<SaveHealthReport?>(null) }
+    var showRescueDialog by remember { mutableStateOf(false) }
 
     // Initial data
     val initialData = remember { repo.loadSaveData() }
@@ -57,8 +64,7 @@ fun SaveEditorScreen() {
     var showSuccessDialog by remember { mutableStateOf(false) }
     var resultDialogMessage by remember { mutableStateOf("") }
 
-    // Auto-scan on load
-    LaunchedEffect(Unit) {
+    fun refreshSaves() {
         val detected = bridge.scanRealSaves()
         realSaves = detected
         if (detected.isNotEmpty()) {
@@ -70,7 +76,16 @@ fun SaveEditorScreen() {
             selectedSeason = first.season
             dayOfMonth = first.day.toFloat()
             year = first.year.toString()
+
+            // Run Health Inspector
+            val activeMods = repo.loadInstalledMods().filter { it.isEnabled }.map { it.name }
+            val rawXml = bridge.execCommand("cat ${first.folderPath}/SaveGameInfo")
+            healthReport = rescueManager.inspectSaveHealth(rawXml, activeMods)
         }
+    }
+
+    LaunchedEffect(Unit) {
+        refreshSaves()
     }
 
     // SAF Document Tree Picker
@@ -97,6 +112,7 @@ fun SaveEditorScreen() {
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Header & Rescue Button
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -107,10 +123,32 @@ fun SaveEditorScreen() {
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold
             )
-            AssistChip(
-                onClick = {},
-                label = { Text(if (bridge.isShizukuAvailable()) "⚡ Shizuku Direct Sync" else "🛡️ Safe XML Engine") }
-            )
+            Button(
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    showRescueDialog = true
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer, contentColor = MaterialTheme.colorScheme.onTertiaryContainer),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Text("🛟 ${Strings.get("กู้คืนเซฟ", "Save Rescue")}")
+            }
+        }
+
+        // Mod Health & Compatibility Alert Banner
+        healthReport?.let { report ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (report.isBootable) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer
+                )
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(report.statusTitle, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text(report.statusDetail, fontSize = 12.sp)
+                }
+            }
         }
 
         // Real Save Slot Selector Card
@@ -207,8 +245,7 @@ fun SaveEditorScreen() {
                     Button(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            val detected = bridge.scanRealSaves()
-                            realSaves = detected
+                            refreshSaves()
                         },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(8.dp),
@@ -395,10 +432,16 @@ fun SaveEditorScreen() {
                     maxStamina = maxStamina.toInt()
                 )
 
-                // 1. Persist in SharedPreferences
+                // 1. Create Pre-Save Snapshot Backup FIRST for 100% safety
+                if (selectedRealSlot != null) {
+                    val folder = File(selectedRealSlot!!.folderPath)
+                    rescueManager.createSnapshotBackup(folder, "PreEdit")
+                }
+
+                // 2. Persist in SharedPreferences
                 repo.persistSaveData(updatedData)
 
-                // 2. Write to real game save slot
+                // 3. Write to real game save slot
                 var writeSuccess = false
                 if (selectedRealSlot != null) {
                     writeSuccess = bridge.writeSaveWithProtection(selectedRealSlot!!.folderPath, updatedData, saveEditor)
@@ -410,8 +453,8 @@ fun SaveEditorScreen() {
 
                 resultDialogMessage = if (writeSuccess) {
                     Strings.get(
-                        "✓ บันทึกค่าลงไฟล์เซฟจริงและไฟล์ SaveGameInfo สำเร็จเรียบร้อยแล้ว!\n(ชื่อฟาร์ม: $farmName | เงิน: ${money}g | วันที่: $selectedSeason วันที่ ${dayOfMonth.toInt()} ปี $year)\n\nเมื่อเปิดเข้าเกม Stardew Valley จะพบเซฟพร้อมเล่นได้ทันที!",
-                        "✓ Successfully written to the real save file and SaveGameInfo!\n(Farm: $farmName | Gold: ${money}g | Date: $selectedSeason Day ${dayOfMonth.toInt()} Year $year)\n\nOpen Stardew Valley to see your updated farm in the Load menu!"
+                        "✓ บันทึกค่าลงไฟล์เซฟจริงและสร้างจุดสำรอง Snapshot อัตโนมัติเรียบร้อยแล้ว!\n(ชื่อฟาร์ม: $farmName | เงิน: ${money}g | วันที่: $selectedSeason วันที่ ${dayOfMonth.toInt()} ปี $year)\n\nหากต้องการย้อนกลับ สามารถกดปุ่ม '🛟 กู้คืนเซฟ' ได้ตลอดเวลา!",
+                        "✓ Successfully written to real save and created a safety snapshot backup!\n(Farm: $farmName | Gold: ${money}g)\n\nYou can restore any prior version anytime via 'Save Rescue'!"
                     )
                 } else {
                     Strings.get(
@@ -430,6 +473,14 @@ fun SaveEditorScreen() {
                 text = Strings.get("💾 บันทึกการแก้ไขลงเซฟเกมจริง", "💾 Save & Apply to Game Files"),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold
+            )
+        }
+
+        // Rescue Dialog
+        if (showRescueDialog) {
+            SaveRescueDialog(
+                onDismiss = { showRescueDialog = false },
+                onRestored = { refreshSaves() }
             )
         }
 
