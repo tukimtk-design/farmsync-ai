@@ -20,6 +20,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tukimtk.farmsync.i18n.Strings
+import com.tukimtk.farmsync.mods.ModInstaller
+
+data class InstalledModItem(
+    val id: String,
+    val name: String,
+    val author: String,
+    val version: String,
+    var isEnabled: Boolean = true
+)
 
 data class ModDownloadItem(
     val name: String,
@@ -32,26 +41,65 @@ data class ModDownloadItem(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ModManagerScreen() {
+fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit = {}) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
+    val installer = remember { ModInstaller(context) }
 
     var selectedTab by remember { mutableIntStateOf(0) }
-    var sveEnabled by remember { mutableStateOf(true) }
-    var uiInfoEnabled by remember { mutableStateOf(true) }
-    var translationEnabled by remember { mutableStateOf(true) }
+    var installedMods by remember {
+        mutableStateOf(
+            listOf(
+                InstalledModItem("1", "Stardew Valley Expanded", "FlashShifter", "v1.14.24", true),
+                InstalledModItem("2", "UI Info Suite 2", "Annosz", "v2.3.3", true),
+                InstalledModItem("3", Strings.get("ม็อดแปลบทสนทนาภาษาไทย (AI BYOK)", "AI Thai Dialogue Localization"), "FarmSync AI", "v1.0.0", true)
+            )
+        )
+    }
+
     var showInstallDialog by remember { mutableStateOf<String?>(null) }
+    var isInstalling by remember { mutableStateOf(false) }
+
+    fun processZipInstall(uri: Uri) {
+        isInstalling = true
+        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        val result = installer.installModFromUri(uri)
+        isInstalling = false
+
+        if (result.isSuccess) {
+            installedMods = installedMods + InstalledModItem(
+                id = System.currentTimeMillis().toString(),
+                name = result.modName,
+                author = result.author,
+                version = result.version,
+                isEnabled = true
+            )
+            showInstallDialog = Strings.get(
+                "✓ ติดตั้งม็อด '${result.modName}' (${result.version}) โดย ${result.author} สำเร็จเรียบร้อยแล้ว! (แตกไฟล์ ${result.extractedFilesCount} รายการเข้าสู่โฟลเดอร์ Mods)",
+                "✓ Successfully installed '${result.modName}' (${result.version}) by ${result.author}! (${result.extractedFilesCount} files extracted to Mods directory)"
+            )
+        } else {
+            showInstallDialog = Strings.get(
+                "❌ ไม่สามารถติดตั้งม็อดได้: ${result.message}",
+                "❌ Failed to install mod: ${result.message}"
+            )
+        }
+    }
+
+    // Auto-process incoming zip if opened from external download
+    LaunchedEffect(incomingZipUri) {
+        incomingZipUri?.let { uri ->
+            processZipInstall(uri)
+            onClearIncomingZip()
+        }
+    }
 
     // SAF Zip File Picker
     val zipPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-            showInstallDialog = Strings.get(
-                "ติดตั้งม็อดจากไฟล์สำเร็จ: ${uri.lastPathSegment ?: "Mod.zip"}",
-                "Successfully installed mod from: ${uri.lastPathSegment ?: "Mod.zip"}"
-            )
+            processZipInstall(uri)
         }
     }
 
@@ -143,7 +191,7 @@ fun ModManagerScreen() {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     selectedTab = 0
                 },
-                text = { Text(Strings.get("ม็อดในเครื่อง", "Installed Mods")) }
+                text = { Text("${Strings.get("ม็อดในเครื่อง", "Installed Mods")} (${installedMods.size})") }
             )
             Tab(
                 selected = selectedTab == 1,
@@ -151,60 +199,39 @@ fun ModManagerScreen() {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     selectedTab = 1
                 },
-                text = { Text(Strings.get("🌐 คลังม็อดยอดนิยม (Download)", "🌐 Popular Mods")) }
+                text = { Text(Strings.get("🌐 คลังม็อดยอดนิยม", "🌐 Popular Mods")) }
             )
         }
 
         if (selectedTab == 0) {
             Text(
                 text = Strings.get(
-                    "เปิด/ปิดการทำงานของม็อดในโฟลเดอร์ /Android/data/com.zane.stardewvalley/files/Mods/ ได้ทันที",
-                    "Enable or disable installed mods directly in your game Mods folder."
+                    "เปิด/ปิดการทำงานของม็อดในโฟลเดอร์เกมได้ทันที หรือกดปุ่ม '+ ติดตั้งไฟล์ .zip' เพื่อให้แอปช่วยแตกไฟล์และติดตั้งให้อัตโนมัติ",
+                    "Enable/disable mods or tap '+ Install .zip' to let FarmSync AI extract and install automatically."
                 ),
                 fontSize = 13.sp,
                 color = Color.Gray
             )
 
-            // Installed Mod 1
-            ModCard(
-                name = "Stardew Valley Expanded",
-                author = "FlashShifter",
-                version = "v1.14.24",
-                isEnabled = sveEnabled,
-                onToggle = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    sveEnabled = it
-                }
-            )
-
-            // Installed Mod 2
-            ModCard(
-                name = "UI Info Suite 2",
-                author = "Annosz",
-                version = "v2.3.3",
-                isEnabled = uiInfoEnabled,
-                onToggle = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    uiInfoEnabled = it
-                }
-            )
-
-            // Installed Mod 3
-            ModCard(
-                name = Strings.get("ม็อดแปลบทสนทนาภาษาไทย (AI BYOK)", "AI Thai Dialogue Localization"),
-                author = "FarmSync AI (BYOK)",
-                version = "v1.0.0",
-                isEnabled = translationEnabled,
-                onToggle = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    translationEnabled = it
-                }
-            )
+            installedMods.forEach { mod ->
+                ModCard(
+                    name = mod.name,
+                    author = mod.author,
+                    version = mod.version,
+                    isEnabled = mod.isEnabled,
+                    onToggle = { isChecked: Boolean ->
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        installedMods = installedMods.map {
+                            if (it.id == mod.id) it.copy(isEnabled = isChecked) else it
+                        }
+                    }
+                )
+            }
         } else {
             Text(
                 text = Strings.get(
-                    "กดที่ปุ่ม 'ดาวน์โหลด' เพื่อเปิดหน้า Nexus Mods / GitHub โหลดไฟล์ .zip แล้วกดติดตั้งเข้าเกมได้ทันที",
-                    "Tap 'Download' to open the mod page on Nexus Mods / GitHub, download the .zip, and install."
+                    "กดปุ่ม 'ดาวน์โหลดม็อด' เพื่อโหลดไฟล์ .zip จาก Nexus Mods / GitHub เมื่อโหลดเสร็จ แอป FarmSync AI จะช่วยเปิดและติดตั้งลงเกมให้อัตโนมัติ",
+                    "Tap 'Download' to download the .zip mod. When finished, FarmSync AI can open and install it automatically."
                 ),
                 fontSize = 13.sp,
                 color = Color.Gray
@@ -245,7 +272,7 @@ fun ModManagerScreen() {
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(8.dp)
                         ) {
-                            Text("🌐 ${Strings.get("เปิดหน้าดาวน์โหลดม็อด (Download)", "Open Mod Download Page")}")
+                            Text("🌐 ${Strings.get("ดาวน์โหลดม็อด .zip (Download)", "Download .zip Mod")}")
                         }
                     }
                 }
@@ -255,7 +282,7 @@ fun ModManagerScreen() {
         // Install result feedback dialog
         showInstallDialog?.let { msg ->
             SuccessFeedbackDialog(
-                title = Strings.get("ติดตั้งม็อดสำเร็จ!", "Mod Installed!"),
+                title = Strings.get("ผลการติดตั้งม็อด", "Mod Installation Result"),
                 message = msg,
                 onDismiss = { showInstallDialog = null }
             )

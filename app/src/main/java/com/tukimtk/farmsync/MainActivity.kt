@@ -1,5 +1,7 @@
 package com.tukimtk.farmsync
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -35,11 +37,32 @@ import com.tukimtk.farmsync.ui.StorageConfigDialog
 import com.tukimtk.farmsync.ui.SuccessFeedbackDialog
 
 class MainActivity : ComponentActivity() {
+    private var incomingZipUriState = mutableStateOf<Uri?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        handleIncomingIntent(intent)
+
         setContent {
             FarmSyncAppTheme {
-                MainAppScaffold()
+                MainAppScaffold(
+                    incomingZipUri = incomingZipUriState.value,
+                    onClearIncomingZip = { incomingZipUriState.value = null }
+                )
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        handleIncomingIntent(intent)
+    }
+
+    private fun handleIncomingIntent(intent: Intent?) {
+        if (intent?.action == Intent.ACTION_VIEW) {
+            val uri = intent.data
+            if (uri != null) {
+                incomingZipUriState.value = uri
             }
         }
     }
@@ -55,10 +78,19 @@ enum class NavigationTab(val titleTh: String, val titleEn: String, val icon: Ima
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainAppScaffold() {
+fun MainAppScaffold(
+    incomingZipUri: Uri? = null,
+    onClearIncomingZip: () -> Unit = {}
+) {
     val haptic = LocalHapticFeedback.current
-    var currentTab by remember { mutableStateOf(NavigationTab.DASHBOARD) }
+    var currentTab by remember { mutableStateOf(if (incomingZipUri != null) NavigationTab.MODS else NavigationTab.DASHBOARD) }
     var showApiKeyDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(incomingZipUri) {
+        if (incomingZipUri != null) {
+            currentTab = NavigationTab.MODS
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -130,7 +162,10 @@ fun MainAppScaffold() {
             when (currentTab) {
                 NavigationTab.DASHBOARD -> FarmDashboardScreen()
                 NavigationTab.EDITOR -> SaveEditorScreen()
-                NavigationTab.MODS -> ModManagerScreen()
+                NavigationTab.MODS -> ModManagerScreen(
+                    incomingZipUri = incomingZipUri,
+                    onClearIncomingZip = onClearIncomingZip
+                )
                 NavigationTab.SHIZUKU -> ShizukuOnboardingScreen()
                 NavigationTab.SETTINGS -> SettingsTabContent(onOpenApiKey = { showApiKeyDialog = true })
             }
