@@ -10,6 +10,7 @@ import org.json.JSONObject
 
 data class ModInstallResult(
     val isSuccess: Boolean,
+    val uniqueId: String,
     val modName: String,
     val author: String,
     val version: String,
@@ -23,17 +24,15 @@ class ModInstaller(private val context: Context) {
         return try {
             val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
             if (inputStream == null) {
-                return ModInstallResult(false, "Unknown", "Unknown", "Unknown", 0, "Cannot open file stream")
+                return ModInstallResult(false, "", "Unknown", "Unknown", "Unknown", 0, "Cannot open file stream")
             }
 
-            // Target Mods Directory in app external files or standard mods folder
             val modsDir = File(context.getExternalFilesDir(null), "Mods").apply { mkdirs() }
 
             val zipIn = ZipInputStream(inputStream)
             var entry = zipIn.nextEntry
             var fileCount = 0
             var manifestContent: String? = null
-            var rootModFolderName = "InstalledMod_${System.currentTimeMillis()}"
 
             val buffer = ByteArray(8192)
 
@@ -70,9 +69,14 @@ class ModInstaller(private val context: Context) {
             zipIn.close()
 
             // Parse manifest if found
-            var modName = uri.lastPathSegment ?: "Custom Mod"
+            var cleanFileName = (uri.lastPathSegment ?: "Mod_${System.currentTimeMillis()}")
+                .substringAfterLast("/")
+                .removeSuffix(".zip")
+            
+            var modName = cleanFileName
             var author = "Unknown Author"
             var version = "1.0.0"
+            var uniqueId = "custom_${cleanFileName.lowercase().replace(" ", "_")}"
 
             manifestContent?.let { jsonStr ->
                 try {
@@ -80,20 +84,23 @@ class ModInstaller(private val context: Context) {
                     modName = json.optString("Name", modName)
                     author = json.optString("Author", author)
                     version = json.optString("Version", version)
+                    uniqueId = json.optString("UniqueID", uniqueId)
                 } catch (_: Exception) {}
             }
 
             ModInstallResult(
                 isSuccess = true,
+                uniqueId = uniqueId,
                 modName = modName,
                 author = author,
                 version = version,
                 extractedFilesCount = fileCount,
-                message = "Mod '$modName' ($version) installed successfully! ($fileCount files extracted to Mods directory)"
+                message = "Mod '$modName' ($version) installed successfully!"
             )
         } catch (e: Exception) {
             ModInstallResult(
                 isSuccess = false,
+                uniqueId = "",
                 modName = "Error",
                 author = "-",
                 version = "-",

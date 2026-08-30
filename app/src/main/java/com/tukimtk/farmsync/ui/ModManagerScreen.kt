@@ -21,20 +21,15 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tukimtk.farmsync.data.PersistedMod
+import com.tukimtk.farmsync.data.SaveStateRepository
 import com.tukimtk.farmsync.i18n.Strings
 import com.tukimtk.farmsync.mods.ModInstallResult
 import com.tukimtk.farmsync.mods.ModInstaller
 
-data class InstalledModItem(
-    val id: String,
-    val name: String,
-    val author: String,
-    val version: String,
-    var isEnabled: Boolean = true
-)
-
 data class ModDownloadItem(
     val idKey: String,
+    val uniqueId: String,
     val name: String,
     val author: String,
     val descriptionTh: String,
@@ -44,7 +39,7 @@ data class ModDownloadItem(
 )
 
 data class PendingUpdateInfo(
-    val existingMod: InstalledModItem,
+    val existingMod: PersistedMod,
     val newResult: ModInstallResult
 )
 
@@ -53,28 +48,22 @@ data class PendingUpdateInfo(
 fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit = {}) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
+    val repo = remember { SaveStateRepository(context) }
     val installer = remember { ModInstaller(context) }
 
     var selectedTab by remember { mutableIntStateOf(0) }
-    var installedMods by remember {
-        mutableStateOf(
-            listOf(
-                InstalledModItem("sve", "Stardew Valley Expanded", "FlashShifter", "v1.14.24", true),
-                InstalledModItem("ui_info", "UI Info Suite 2", "Annosz", "v2.3.3", true),
-                InstalledModItem("thai_ai", Strings.get("ม็อดแปลบทสนทนาภาษาไทย (AI BYOK)", "AI Thai Dialogue Localization"), "FarmSync AI", "v1.0.0", true)
-            )
-        )
-    }
+    var installedMods by remember { mutableStateOf(repo.loadInstalledMods()) }
 
     var showInstallDialog by remember { mutableStateOf<String?>(null) }
     var pendingUpdate by remember { mutableStateOf<PendingUpdateInfo?>(null) }
-    var modToDelete by remember { mutableStateOf<InstalledModItem?>(null) }
+    var modToDelete by remember { mutableStateOf<PersistedMod?>(null) }
     var isInstalling by remember { mutableStateOf(false) }
 
     val allPopularMods = remember {
         listOf(
             ModDownloadItem(
                 idKey = "sve",
+                uniqueId = "FlashShifter.StardewValleyExpandedCP",
                 name = "Stardew Valley Expanded (SVE)",
                 author = "FlashShifter",
                 descriptionTh = "ม็อดขยายเนื้อเรื่องอันดับ 1 เพิ่มตัวละคร พื้นที่ เควส และอีเวนต์ใหม่มากมาย",
@@ -84,6 +73,7 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
             ),
             ModDownloadItem(
                 idKey = "ui_info",
+                uniqueId = "Annosz.UIInfoSuite2",
                 name = "UI Info Suite 2",
                 author = "Annosz",
                 descriptionTh = "แสดงไอคอนบอกสิ่งที่ต้องทำ ดูสภาพอากาศ วันเกิดชาวบ้าน และราคาขายผลผลิต",
@@ -93,6 +83,7 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
             ),
             ModDownloadItem(
                 idKey = "cp",
+                uniqueId = "Pathoschild.ContentPatcher",
                 name = "Content Patcher (CP)",
                 author = "Pathoschild",
                 descriptionTh = "ม็อดรากฐานที่จำเป็นที่สุดสำหรับใช้โหลดม็อดกราฟิก และเนื้อเรื่องเสริม 1.6",
@@ -102,6 +93,7 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
             ),
             ModDownloadItem(
                 idKey = "automate",
+                uniqueId = "Pathoschild.Automate",
                 name = "Automate",
                 author = "Pathoschild",
                 descriptionTh = "ระบบเชื่อมต่อกล่องกับเตาหลอม/ถังหมัก ให้ทำงานอัตโนมัติ 100%",
@@ -111,6 +103,7 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
             ),
             ModDownloadItem(
                 idKey = "npc_map",
+                uniqueId = "Bouhm.NPCMapLocations",
                 name = "NPC Map Locations",
                 author = "Bouhm",
                 descriptionTh = "แสดงตำแหน่งตัวละคร NPC ทุกคนบนแผนที่แบบ Real-time",
@@ -120,6 +113,7 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
             ),
             ModDownloadItem(
                 idKey = "ridgeside",
+                uniqueId = "Rafseazz.RidgesideVillage",
                 name = "Ridgeside Village",
                 author = "Rafseazz",
                 descriptionTh = "เพิ่มหมู่บ้านขนาดใหญ่บนยอดเขา พร้อมชาวบ้านใหม่กว่า 50 คน",
@@ -130,23 +124,29 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
         )
     }
 
-    // Filter out already-installed mods from the download catalog
+    // Filter out already-installed mods from download catalog using exact IDs
     val availablePopularMods = remember(installedMods) {
         allPopularMods.filter { popMod ->
             installedMods.none { installed ->
                 installed.id == popMod.idKey ||
-                installed.name.contains(popMod.name.take(6), ignoreCase = true) ||
-                popMod.name.contains(installed.name.take(6), ignoreCase = true)
+                (installed.uniqueId.isNotBlank() && installed.uniqueId.equals(popMod.uniqueId, ignoreCase = true)) ||
+                installed.name.trim().equals(popMod.name.trim(), ignoreCase = true)
             }
         }
     }
 
+    fun updateAndPersistMods(newModList: List<PersistedMod>) {
+        installedMods = newModList
+        repo.saveInstalledMods(newModList)
+    }
+
     fun applyModInstall(result: ModInstallResult, replaceTargetId: String? = null) {
         if (replaceTargetId != null) {
-            // Replace existing mod
-            installedMods = installedMods.map {
+            // Replace existing mod cleanly
+            val updated = installedMods.map {
                 if (it.id == replaceTargetId) {
                     it.copy(
+                        uniqueId = result.uniqueId,
                         name = result.modName,
                         author = result.author,
                         version = result.version,
@@ -154,22 +154,25 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
                     )
                 } else it
             }
+            updateAndPersistMods(updated)
             showInstallDialog = Strings.get(
-                "✓ อัปเดตม็อด '${result.modName}' เป็นเวอร์ชัน ${result.version} สำเร็จเรียบร้อยแล้ว! (แทนที่เวอร์ชันเดิมแล้ว)",
-                "✓ Successfully updated '${result.modName}' to ${result.version}! (Old version replaced)"
+                "✓ อัปเดตม็อด '${result.modName}' เป็นเวอร์ชัน ${result.version} สำเร็จเรียบร้อยแล้ว!",
+                "✓ Successfully updated '${result.modName}' to ${result.version}!"
             )
         } else {
-            // Add as new mod
-            installedMods = installedMods + InstalledModItem(
-                id = System.currentTimeMillis().toString(),
+            // Append as a brand new distinct mod (unlimited support)
+            val newMod = PersistedMod(
+                id = "mod_${System.currentTimeMillis()}_${installedMods.size + 1}",
+                uniqueId = result.uniqueId,
                 name = result.modName,
                 author = result.author,
                 version = result.version,
                 isEnabled = true
             )
+            updateAndPersistMods(installedMods + newMod)
             showInstallDialog = Strings.get(
-                "✓ ติดตั้งม็อด '${result.modName}' (${result.version}) โดย ${result.author} สำเร็จเรียบร้อยแล้ว! (แตกไฟล์ ${result.extractedFilesCount} รายการเข้าสู่โฟลเดอร์ Mods)",
-                "✓ Successfully installed '${result.modName}' (${result.version}) by ${result.author}! (${result.extractedFilesCount} files extracted to Mods directory)"
+                "✓ ติดตั้งม็อด '${result.modName}' (${result.version}) โดย ${result.author} สำเร็จเรียบร้อยแล้ว! (รวม ${installedMods.size + 1} รายการ)",
+                "✓ Successfully installed '${result.modName}' (${result.version}) by ${result.author}! (Total: ${installedMods.size + 1} mods)"
             )
         }
     }
@@ -181,17 +184,17 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
         isInstalling = false
 
         if (result.isSuccess) {
-            // Check for existing mod with same/similar name
+            // Precise duplicate check using UniqueID or Exact Name match only
             val existing = installedMods.find {
-                it.name.equals(result.modName, ignoreCase = true) ||
-                (it.name.length >= 5 && result.modName.contains(it.name.take(8), ignoreCase = true)) ||
-                (result.modName.length >= 5 && it.name.contains(result.modName.take(8), ignoreCase = true))
+                (result.uniqueId.isNotBlank() && it.uniqueId.isNotBlank() && it.uniqueId.equals(result.uniqueId, ignoreCase = true)) ||
+                it.name.trim().equals(result.modName.trim(), ignoreCase = true)
             }
 
             if (existing != null) {
-                // Trigger Conflict / Update Confirmation Dialog
+                // Mod is genuinely the same mod -> prompt for update
                 pendingUpdate = PendingUpdateInfo(existingMod = existing, newResult = result)
             } else {
+                // Brand new distinct mod -> append directly!
                 applyModInstall(result)
             }
         } else {
@@ -271,8 +274,8 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
         if (selectedTab == 0) {
             Text(
                 text = Strings.get(
-                    "เปิด/ปิดการทำงานของม็อดได้ทันที หรือกดไอคอนถังขยะเพื่อถอนการติดตั้ง",
-                    "Enable/disable installed mods or tap the trash icon to uninstall."
+                    "เปิด/ปิดการทำงานของม็อดได้ทันที สามารถติดตั้งม็อดได้ไม่จำกัดจำนวน และข้อมูลจะบันทึกคงอยู่ถาวร",
+                    "Enable/disable mods or tap the trash icon to uninstall. Supports unlimited mods with persistent state."
                 ),
                 fontSize = 13.sp,
                 color = Color.Gray
@@ -301,9 +304,10 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
                         isEnabled = mod.isEnabled,
                         onToggle = { isChecked: Boolean ->
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            installedMods = installedMods.map {
+                            val updated = installedMods.map {
                                 if (it.id == mod.id) it.copy(isEnabled = isChecked) else it
                             }
+                            updateAndPersistMods(updated)
                         },
                         onDelete = {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -440,7 +444,8 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
                     Button(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            installedMods = installedMods.filter { it.id != mod.id }
+                            val updated = installedMods.filter { it.id != mod.id }
+                            updateAndPersistMods(updated)
                             modToDelete = null
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
