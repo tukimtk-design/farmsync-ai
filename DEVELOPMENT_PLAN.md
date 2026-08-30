@@ -23,3 +23,16 @@
 * **Consumer Cloud:** Google Drive, Microsoft OneDrive, Dropbox
 * **Local Network (Zero-Cloud):** Windows Shared Folder (SMB / CIFS) ที่ส่งไฟล์ผ่าน Wi-Fi ได้ไวมาก โดยไม่ต้องใช้เน็ต
 * **Power Users / Self-Host:** WebDAV (Nextcloud, Synology NAS), SFTP / SSH (Steam Deck, Linux), และ S3-Compatible Storage (MinIO, S3)
+
+## 6. ระบบตรวจสอบและจัดการ Mod ชั้นสูง (Advanced Mod Manager & Version Checking)
+* **Game & Mod Version Validation:** ระบบสามารถตรวจสอบเวอร์ชันของตัวเกมและ Mod (ผ่าน `ModManifestParser`) เพื่อรายงานผลความเข้ากันได้หรือความผิดปกติได้อย่างแม่นยำ ป้องกันปัญหาเกมแครชจากการลง Mod ผิดเวอร์ชัน
+* **Mod Manager UI:** เพิ่มหน้าต่าง UI (พัฒนาด้วย Jetpack Compose) สำหรับใช้เลือกติดตั้ง เปิด/ปิด หรือปรับแต่ง Mod ที่ใช้งานง่ายเพียงไม่กี่คลิก
+* **Multi-Game Architecture:** วางโครงสร้างแอปให้สามารถนำสถาปัตยกรรมการเช็คเวอร์ชันและการซิงค์นี้ ไปรองรับเกมทำฟาร์มอื่นๆ ที่มีรูปแบบการใช้ไฟล์เซฟและ Mod คล้ายคลึงกันได้ในอนาคต (เช่น Terraria หรือเกมอื่นๆ)
+
+## 7. โครงสร้างรองรับ Multi-Game (Cross-Game Support Architecture)
+* **Game Profile Engine:** ระบบถูกออกแบบเป็นสถาปัตยกรรมแบบ Multi-Game Profile โดยมีโมดูลกลางที่รองรับทั้ง Stardew Valley และเปิดกว้างสำหรับเกมอื่นๆ ในอนาคต (เช่น Terraria หรือ Minecraft)
+* **Dynamic Configuration Menu:** มีหน้าจอ (UI) สำหรับให้ผู้เล่นกรอกและตั้งค่าพาธไฟล์เซฟ หรือข้อมูลเฉพาะของเกมแต่ละเกมที่ต้องการซิงค์ได้ด้วยตนเอง
+
+## 8. ระบบเชิงพาณิชย์และ Google Play Store (Commercial & Distribution)
+* **Google Play In-App Billing:** เชื่อมต่อกับระบบชำระเงินของ Google (PlayBillingManager) สำหรับการปลดล็อกฟีเจอร์ระดับ Pro (Pro Unlock) เพื่อให้แอปพลิเคชันพร้อมสำหรับการวางจำหน่ายจริง
+* **Onboarding & Compliance:** มีหน้าสอนการตั้งค่า Shizuku (ShizukuOnboardingScreen) และการตั้งค่า API Key แบบทีละขั้นตอน เพื่อให้แอปผ่านข้อกำหนดการเข้าถึงข้อมูลของ Google Play Policy
