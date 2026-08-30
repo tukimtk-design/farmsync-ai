@@ -1,5 +1,9 @@
 package com.tukimtk.farmsync.ui
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -19,9 +23,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tukimtk.farmsync.data.SaveStateRepository
 import com.tukimtk.farmsync.game.stardew.EditableSaveData
+import com.tukimtk.farmsync.game.stardew.RealSaveSlot
+import com.tukimtk.farmsync.game.stardew.ShizukuSaveBridge
 import com.tukimtk.farmsync.game.stardew.StardewSaveEditor
 import com.tukimtk.farmsync.i18n.Strings
-import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,8 +35,14 @@ fun SaveEditorScreen() {
     val haptic = LocalHapticFeedback.current
     val repo = remember { SaveStateRepository(context) }
     val saveEditor = remember { StardewSaveEditor() }
+    val bridge = remember { ShizukuSaveBridge(context) }
 
-    // Load initial persistent values
+    // Detected saves on device
+    var realSaves by remember { mutableStateOf<List<RealSaveSlot>>(emptyList()) }
+    var selectedRealSlot by remember { mutableStateOf<RealSaveSlot?>(null) }
+    var selectedTreeUri by remember { mutableStateOf<Uri?>(null) }
+
+    // Initial data
     val initialData = remember { repo.loadSaveData() }
 
     var farmerName by remember { mutableStateOf(initialData.characterName) }
@@ -44,7 +55,38 @@ fun SaveEditorScreen() {
     var maxStamina by remember { mutableFloatStateOf(initialData.maxStamina.toFloat()) }
 
     var showSuccessDialog by remember { mutableStateOf(false) }
-    var savedTargetSummary by remember { mutableStateOf("") }
+    var resultDialogMessage by remember { mutableStateOf("") }
+
+    // Auto-scan on load
+    LaunchedEffect(Unit) {
+        val detected = bridge.scanRealSaves()
+        realSaves = detected
+        if (detected.isNotEmpty()) {
+            val first = detected.first()
+            selectedRealSlot = first
+            farmerName = first.farmerName
+            farmName = first.farmName
+            money = first.money.toString()
+            selectedSeason = first.season
+            dayOfMonth = first.day.toFloat()
+            year = first.year.toString()
+        }
+    }
+
+    // SAF Document Tree Picker
+    val folderPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            selectedTreeUri = uri
+            resultDialogMessage = Strings.get(
+                "เชื่อมต่อโฟลเดอร์เซฟเกมสำเร็จแล้ว! ระบบจะเขียนค่าลงไฟล์เซฟในโฟลเดอร์นี้โดยตรง",
+                "Connected to save folder! Edits will be applied directly to files in this directory."
+            )
+            showSuccessDialog = true
+        }
+    }
 
     val seasons = listOf("Spring", "Summer", "Fall", "Winter")
 
@@ -67,18 +109,116 @@ fun SaveEditorScreen() {
             )
             AssistChip(
                 onClick = {},
-                label = { Text(Strings.get("🛡️ ระบบถนอมเซฟ 100%", "🛡️ Safe XML Engine")) }
+                label = { Text(if (bridge.isShizukuAvailable()) "⚡ Shizuku Direct Sync" else "🛡️ Safe XML Engine") }
             )
         }
 
-        Text(
-            text = Strings.get(
-                "ปรับแต่งค่าตัวละคร ฟาร์ม วันเวลา และเงินในเกมได้อย่างปลอดภัย โดยระบบจะแก้ไขเฉพาะแท็กผู้เล่น และอัปเดตไฟล์ SaveGameInfo ให้อัตโนมัติ เพื่อให้เซฟแสดงในหน้าต่างโหลดเกมทันที",
-                "Safely customize player, farm, timeline, and money. Edits only player data and updates SaveGameInfo so your save appears instantly in the game's Load menu."
-            ),
-            fontSize = 13.sp,
-            color = Color.Gray
-        )
+        // Real Save Slot Selector Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = Strings.get("📂 เลือกเซฟเกมในเครื่องที่จะแก้ไข:", "📂 Select Farm Save to Edit:"),
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+
+                if (realSaves.isNotEmpty()) {
+                    realSaves.forEach { slot ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    selectedRealSlot = slot
+                                    farmerName = slot.farmerName
+                                    farmName = slot.farmName
+                                    money = slot.money.toString()
+                                    selectedSeason = slot.season
+                                    dayOfMonth = slot.day.toFloat()
+                                    year = slot.year.toString()
+                                },
+                            shape = RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (selectedRealSlot?.folderPath == slot.folderPath) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "🏡 ${slot.farmName} (${slot.farmerName})",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp
+                                    )
+                                    Text(
+                                        text = "${slot.season} วันที่ ${slot.day} ปี ${slot.year} | 💰 ${slot.money}g",
+                                        fontSize = 12.sp,
+                                        color = Color.Gray
+                                    )
+                                }
+                                RadioButton(
+                                    selected = selectedRealSlot?.folderPath == slot.folderPath,
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        selectedRealSlot = slot
+                                        farmerName = slot.farmerName
+                                        farmName = slot.farmName
+                                        money = slot.money.toString()
+                                        selectedSeason = slot.season
+                                        dayOfMonth = slot.day.toFloat()
+                                        year = slot.year.toString()
+                                    }
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Text(
+                        text = Strings.get(
+                            "ยังไม่พบเซฟอัตโนมัติ (Android 14 Scoped Storage) คุณสามารถกดปุ่มด้านล่างเพื่อเลือกโฟลเดอร์เซฟ หรือเปิดใช้งาน Shizuku เพื่อตรวจจับอัตโนมัติได้ทันที",
+                            "No saves auto-detected due to Scoped Storage. Tap below to pick your save folder or enable Shizuku for 1-click access."
+                        ),
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            folderPicker.launch(null)
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(Strings.get("📂 เลือกโฟลเดอร์เซฟ", "📂 Pick Save Folder"))
+                    }
+
+                    Button(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            val detected = bridge.scanRealSaves()
+                            realSaves = detected
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+                    ) {
+                        Text(Strings.get("🔄 สแกนใหม่", "🔄 Rescan"))
+                    }
+                }
+            }
+        }
 
         // 1. Basic Info Card
         Card(
@@ -258,29 +398,26 @@ fun SaveEditorScreen() {
                 // 1. Persist in SharedPreferences
                 repo.persistSaveData(updatedData)
 
-                // 2. Scan and modify real game save folders if present
-                val potentialSaveLocations = listOf(
-                    File("/storage/emulated/0/Android/data/com.zane.stardewvalley/files/saves"),
-                    File("/sdcard/StardewValley/Saves"),
-                    File(context.getExternalFilesDir(null), "saves")
-                )
-
-                var modifiedFileCount = 0
-                for (saveDir in potentialSaveLocations) {
-                    if (saveDir.exists() && saveDir.isDirectory) {
-                        saveDir.listFiles()?.forEach { folder ->
-                            if (folder.isDirectory) {
-                                val success = saveEditor.saveToDirectory(folder, updatedData)
-                                if (success) modifiedFileCount++
-                            }
-                        }
-                    }
+                // 2. Write to real game save slot
+                var writeSuccess = false
+                if (selectedRealSlot != null) {
+                    writeSuccess = bridge.writeSaveWithProtection(selectedRealSlot!!.folderPath, updatedData, saveEditor)
                 }
 
-                savedTargetSummary = if (modifiedFileCount > 0) {
-                    "อัปเดตไฟล์เซฟจริง ($modifiedFileCount โฟลเดอร์) และไฟล์ SaveGameInfo เรียบร้อยแล้ว"
+                if (!writeSuccess && selectedTreeUri != null) {
+                    writeSuccess = bridge.writeToDocumentTree(selectedTreeUri!!, updatedData, saveEditor)
+                }
+
+                resultDialogMessage = if (writeSuccess) {
+                    Strings.get(
+                        "✓ บันทึกค่าลงไฟล์เซฟจริงและไฟล์ SaveGameInfo สำเร็จเรียบร้อยแล้ว!\n(ชื่อฟาร์ม: $farmName | เงิน: ${money}g | วันที่: $selectedSeason วันที่ ${dayOfMonth.toInt()} ปี $year)\n\nเมื่อเปิดเข้าเกม Stardew Valley จะพบเซฟพร้อมเล่นได้ทันที!",
+                        "✓ Successfully written to the real save file and SaveGameInfo!\n(Farm: $farmName | Gold: ${money}g | Date: $selectedSeason Day ${dayOfMonth.toInt()} Year $year)\n\nOpen Stardew Valley to see your updated farm in the Load menu!"
+                    )
                 } else {
-                    "บันทึกค่าลงฐานข้อมูลในระบบเรียบร้อยแล้ว (จะนำไปเขียนลงไฟล์เซฟอัตโนมัติเมื่อซิงค์กับเกม)"
+                    Strings.get(
+                        "✓ บันทึกการตั้งค่าในระบบเรียบร้อยแล้ว! (หากต้องการเขียนลงโฟลเดอร์เซฟของตัวเกมโดยตรง กรุณากดปุ่ม '📂 เลือกโฟลเดอร์เซฟ' ด้านบน หรือเปิดสิทธิ์ Shizuku)",
+                        "✓ Configuration saved in app! (To write directly into the game directory, please tap '📂 Pick Save Folder' above or enable Shizuku)"
+                    )
                 }
 
                 showSuccessDialog = true
@@ -290,7 +427,7 @@ fun SaveEditorScreen() {
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
         ) {
             Text(
-                text = Strings.get("💾 บันทึกการแก้ไขลงเซฟเกม", "💾 Save & Apply Edits to Game"),
+                text = Strings.get("💾 บันทึกการแก้ไขลงเซฟเกมจริง", "💾 Save & Apply to Game Files"),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -299,11 +436,8 @@ fun SaveEditorScreen() {
         // Success Confirmation Dialog
         if (showSuccessDialog) {
             SuccessFeedbackDialog(
-                title = Strings.get("บันทึกการแก้ไขสำเร็จ!", "Save Edits Applied!"),
-                message = Strings.get(
-                    "ค่าเซฟเกมถูกบันทึกอย่างปลอดภัย (ฟาร์ม: $farmName | เงิน: ${money}g | วันที่: $selectedSeason วันที่ ${dayOfMonth.toInt()} ปี $year)\n\n$savedTargetSummary",
-                    "Your farm save has been successfully updated with safe XML protection (Farm: $farmName | Gold: ${money}g | Date: $selectedSeason Day ${dayOfMonth.toInt()} Year $year).\n\n$savedTargetSummary"
-                ),
+                title = Strings.get("ผลการบันทึกเซฟเกม", "Save Operation Result"),
+                message = resultDialogMessage,
                 onDismiss = { showSuccessDialog = false }
             )
         }
