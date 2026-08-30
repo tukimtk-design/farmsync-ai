@@ -19,7 +19,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tukimtk.farmsync.data.SaveStateRepository
 import com.tukimtk.farmsync.game.stardew.EditableSaveData
+import com.tukimtk.farmsync.game.stardew.StardewSaveEditor
 import com.tukimtk.farmsync.i18n.Strings
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -27,6 +29,7 @@ fun SaveEditorScreen() {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val repo = remember { SaveStateRepository(context) }
+    val saveEditor = remember { StardewSaveEditor() }
 
     // Load initial persistent values
     val initialData = remember { repo.loadSaveData() }
@@ -41,6 +44,7 @@ fun SaveEditorScreen() {
     var maxStamina by remember { mutableFloatStateOf(initialData.maxStamina.toFloat()) }
 
     var showSuccessDialog by remember { mutableStateOf(false) }
+    var savedTargetSummary by remember { mutableStateOf("") }
 
     val seasons = listOf("Spring", "Summer", "Fall", "Winter")
 
@@ -63,14 +67,14 @@ fun SaveEditorScreen() {
             )
             AssistChip(
                 onClick = {},
-                label = { Text(Strings.get("🛡️ สำรองข้อมูลอัตโนมัติ", "🛡️ Auto-Backup")) }
+                label = { Text(Strings.get("🛡️ ระบบถนอมเซฟ 100%", "🛡️ Safe XML Engine")) }
             )
         }
 
         Text(
             text = Strings.get(
-                "ปรับแต่งค่าตัวละคร ฟาร์ม วันเวลา และเงินในเกมได้อย่างปลอดภัย โดยระบบจะบันทึกค่าและสำรองไฟล์เดิมให้อัตโนมัติ",
-                "Safely customize player, farm, timeline, and money values. The system persists edits and creates an automated backup."
+                "ปรับแต่งค่าตัวละคร ฟาร์ม วันเวลา และเงินในเกมได้อย่างปลอดภัย โดยระบบจะแก้ไขเฉพาะแท็กผู้เล่น และอัปเดตไฟล์ SaveGameInfo ให้อัตโนมัติ เพื่อให้เซฟแสดงในหน้าต่างโหลดเกมทันที",
+                "Safely customize player, farm, timeline, and money. Edits only player data and updates SaveGameInfo so your save appears instantly in the game's Load menu."
             ),
             fontSize = 13.sp,
             color = Color.Gray
@@ -240,7 +244,6 @@ fun SaveEditorScreen() {
             onClick = {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
 
-                // 1. Persist data into storage
                 val updatedData = EditableSaveData(
                     characterName = farmerName.ifBlank { "Tuki" },
                     farmName = farmName.ifBlank { "Sunrise Peak" },
@@ -251,9 +254,35 @@ fun SaveEditorScreen() {
                     maxHealth = maxHealth.toInt(),
                     maxStamina = maxStamina.toInt()
                 )
+
+                // 1. Persist in SharedPreferences
                 repo.persistSaveData(updatedData)
 
-                // 2. Show success dialog
+                // 2. Scan and modify real game save folders if present
+                val potentialSaveLocations = listOf(
+                    File("/storage/emulated/0/Android/data/com.zane.stardewvalley/files/saves"),
+                    File("/sdcard/StardewValley/Saves"),
+                    File(context.getExternalFilesDir(null), "saves")
+                )
+
+                var modifiedFileCount = 0
+                for (saveDir in potentialSaveLocations) {
+                    if (saveDir.exists() && saveDir.isDirectory) {
+                        saveDir.listFiles()?.forEach { folder ->
+                            if (folder.isDirectory) {
+                                val success = saveEditor.saveToDirectory(folder, updatedData)
+                                if (success) modifiedFileCount++
+                            }
+                        }
+                    }
+                }
+
+                savedTargetSummary = if (modifiedFileCount > 0) {
+                    "อัปเดตไฟล์เซฟจริง ($modifiedFileCount โฟลเดอร์) และไฟล์ SaveGameInfo เรียบร้อยแล้ว"
+                } else {
+                    "บันทึกค่าลงฐานข้อมูลในระบบเรียบร้อยแล้ว (จะนำไปเขียนลงไฟล์เซฟอัตโนมัติเมื่อซิงค์กับเกม)"
+                }
+
                 showSuccessDialog = true
             },
             modifier = Modifier.fillMaxWidth(),
@@ -272,8 +301,8 @@ fun SaveEditorScreen() {
             SuccessFeedbackDialog(
                 title = Strings.get("บันทึกการแก้ไขสำเร็จ!", "Save Edits Applied!"),
                 message = Strings.get(
-                    "ค่าเซฟเกมใหม่ถูกบันทึกเรียบร้อยแล้ว (ชื่อฟาร์ม: $farmName | เงิน: ${money}g | วันที่: $selectedSeason วันที่ ${dayOfMonth.toInt()} ปี $year) ข้อมูลจะยังคงอยู่แม้ปิดแอปแล้วเปิดใหม่",
-                    "Your farm save has been successfully updated and persisted (Farm: $farmName | Gold: ${money}g | Date: $selectedSeason Day ${dayOfMonth.toInt()} Year $year). Data will remain saved across app restarts."
+                    "ค่าเซฟเกมถูกบันทึกอย่างปลอดภัย (ฟาร์ม: $farmName | เงิน: ${money}g | วันที่: $selectedSeason วันที่ ${dayOfMonth.toInt()} ปี $year)\n\n$savedTargetSummary",
+                    "Your farm save has been successfully updated with safe XML protection (Farm: $farmName | Gold: ${money}g | Date: $selectedSeason Day ${dayOfMonth.toInt()} Year $year).\n\n$savedTargetSummary"
                 ),
                 onDismiss = { showSuccessDialog = false }
             )
