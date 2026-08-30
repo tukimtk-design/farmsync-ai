@@ -54,3 +54,14 @@
 * **SMAPI Lifecycle Engine (C#):** พัฒนา Mod ฝั่ง PC (`FarmSyncCompanion`) ที่ทำงานสอดคล้องกับ Lifecycle ของเกม เช่น `GameLaunched` (ตรวจสอบเซฟใหม่ตอนเข้าเกม), `Saved` (ซิงค์อัตโนมัติตอนเข้านอน), และ `ReturnedToTitle` (ตรวจเช็กความสมบูรณ์ตอนออกเกม)
 * **Asynchronous & Zero-Lag:** กระบวนการซิงค์เซฟบน PC จะทำงานแบบเบื้องหลัง (Asynchronous ผ่าน `Task.Run`) ทันทีที่วันใหม่ในเกมเริ่มขึ้น เพื่อรับประกันว่าหน้าจอเกมจะไม่ค้างหรือกระตุก (100% Zero-Lag)
 * **PC-Side Storage Drivers:** ตัว Mod ฝั่ง PC ถูกออกแบบให้รองรับการรับส่งไฟล์ (IStorageDriver) ผ่าน Local SMB (ซิงค์ผ่าน Wi-Fi บ้านโดยตรง), การตรวจจับพาธ OneDrive Local Folder อัตโนมัติ, และการเชื่อมต่อ Google Drive / WebDAV REST API
+
+## 13. ระบบแปลภาษา AI เชิงลึกและการปกป้องโครงสร้างเกม (Persona-Aware AI Translator & Tag Shield)
+* **Stardew Tag Shield (Regex Engine):** สร้างระบบป้องกันแท็กสำคัญของเกม (เช่น `%firstname`, `^`, `$e`, `[icons]`) ผ่านการใช้ Regex Shield แบบหลายชั้น เพื่อป้องกันปัญหาโครงสร้างไฟล์เกมเสียหายหลังจากผ่านกระบวนการแปลของ AI
+* **Persona-Aware Translation:** พัฒนาระบบแปลภาษาไทยและภาษาอื่นๆ แบบคำนึงถึงบุคลิกตัวละคร (เช่น Sebastian หรือ Abigail จะมีสไตล์การพูดที่ต่างกัน) โดยใช้โมเดล Gemini 2.0 Flash ผ่านระบบ Bring Your Own Key (BYOK)
+* **Translation Pipeline:** ผสานการทำงานทั้งหมดเข้าสู่ `AiModTranslator` เพื่อเป็นศูนย์กลางในการรับข้อความ ปกป้องแท็ก แปลเนื้อหา และประกอบแท็กกลับคืนอย่างสมบูรณ์แบบ
+
+## 13. เอกสารคู่มือและขั้นตอนการติดตั้งแบบ Cross-Platform (Multi-Platform Installation Guides)
+* **Visual & Easy-to-Understand UI Documentation:** ปรับปรุงเอกสารคู่มือ (`README.md`) ให้มีความสวยงาม อ่านง่าย มีการใช้ Emoji, หัวข้อที่ชัดเจน, และลิงก์อ้างอิง เพื่อให้ผู้ใช้งานทั่วไปสามารถทำตามได้ง่ายที่สุด
+* **Android 14+ Shizuku Setup:** คู่มือการตั้งค่าสิทธิ์ Scoped Storage อย่างละเอียดแบบไม่ต้อง Root เครื่อง ผ่านระบบ Wireless Debugging และแอป Shizuku สำหรับมือถือรุ่นใหม่ๆ (HyperOS, OneUI)
+* **PC & Steam Deck SMAPI Mod Setup:** คู่มือการติดตั้งและใช้งานร่วมกับ `FarmSync Companion` ฝั่ง PC โดยครอบคลุมทั้งผู้เล่นที่ใช้ SMAPI Mod และผู้เล่น Vanilla ที่ต้องการซิงค์ผ่านระบบพื้นฐาน (เช่น OneDrive)
+* **Multi-Storage Configuration:** อธิบายวิธีการเลือกเชื่อมต่อระหว่าง Google Drive / OneDrive (ตั้งค่าง่าย) และ Local Wi-Fi SMB (ซิงค์เร็วแบบออฟไลน์)
