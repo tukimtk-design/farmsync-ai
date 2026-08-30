@@ -1,8 +1,16 @@
 package com.tukimtk.farmsync.ui
 
-// Stub for Jetpack Compose UI
-class ShizukuOnboardingScreen {
-    fun render() {
-        println("Rendering 3-Step Shizuku Onboarding Screen...")
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+
+@Composable
+fun ShizukuOnboardingScreen() {
+    Column {
+        Text("Shizuku Onboarding: 3-Step Guide")
+        Button(onClick = { /* Check Perms */ }) {
+            Text("Check Permission")
+        }
     }
 }

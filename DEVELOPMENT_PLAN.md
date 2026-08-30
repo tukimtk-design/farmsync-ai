@@ -65,3 +65,9 @@
 * **Android 14+ Shizuku Setup:** คู่มือการตั้งค่าสิทธิ์ Scoped Storage อย่างละเอียดแบบไม่ต้อง Root เครื่อง ผ่านระบบ Wireless Debugging และแอป Shizuku สำหรับมือถือรุ่นใหม่ๆ (HyperOS, OneUI)
 * **PC & Steam Deck SMAPI Mod Setup:** คู่มือการติดตั้งและใช้งานร่วมกับ `FarmSync Companion` ฝั่ง PC โดยครอบคลุมทั้งผู้เล่นที่ใช้ SMAPI Mod และผู้เล่น Vanilla ที่ต้องการซิงค์ผ่านระบบพื้นฐาน (เช่น OneDrive)
 * **Multi-Storage Configuration:** อธิบายวิธีการเลือกเชื่อมต่อระหว่าง Google Drive / OneDrive (ตั้งค่าง่าย) และ Local Wi-Fi SMB (ซิงค์เร็วแบบออฟไลน์)
+
+## 14. ระบบจัดการไฟล์และการซิงค์ข้อมูลประสิทธิภาพสูง (Multi-Storage Provider Engine)
+* **Unified Storage Interface:** พัฒนาโครงสร้างพื้นฐาน (`StorageProvider`) เพื่อรองรับการเชื่อมต่อกับระบบเก็บข้อมูลทุกรูปแบบให้ทำงานร่วมกันได้อย่างไร้รอยต่อ
+* **Advanced Cloud Support:** รองรับการซิงค์ข้อมูลผ่าน Google Drive (REST API v3) และ Microsoft OneDrive แบบอัตโนมัติ
+* **High-Speed Offline Sync (Zero-Cloud):** สนับสนุนผู้เล่นกลุ่ม Local Wi-Fi ผ่านโปรโตคอล `SMB2/3` (Windows Shared Folder) ทำให้สามารถส่งไฟล์ความเร็วสูงทะลุ 1 Gbps ได้โดยไม่ต้องใช้อินเทอร์เน็ต
+* **Power User Expansion:** รองรับการเชื่อมต่อส่วนตัวผ่าน WebDAV, SFTP และ S3-Compatible Storage ตอบโจทย์กลุ่มผู้เล่นที่ใช้ Steam Deck, NAS และ Linux Server
