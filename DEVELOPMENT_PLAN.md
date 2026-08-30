@@ -45,3 +45,7 @@
 ## 10. การปรับปรุงสถาปัตยกรรมระบบเพื่อความยั่งยืน (Clean Architecture & Scalability Overhaul)
 * **Clean Architecture & Dependency Injection:** ปรับโครงสร้างโฟลเดอร์ของโปรเจกต์ให้อยู่ในรูปแบบ Clean Architecture (แบ่งแยก Layer ชัดเจน เช่น `core`, `sync`, `ai`, `patcher`, `ui`) และเตรียมโครงสร้างพื้นฐานสำหรับ Dependency Injection (DI) ในชั้น `core` เพื่อลดการยึดติดของโค้ด (Loose Coupling)
 * **Scalable & Maintainable:** สถาปัตยกรรมนี้ทำให้โค้ดอ่านง่าย แก้ไขง่าย ทดสอบง่าย และพร้อมรองรับการขยายฟีเจอร์ใหม่ๆ (เช่น การรองรับเกมใหม่, AI Engine ตัวใหม่, หรือระบบคลาวด์เจ้าใหม่) ในอนาคตได้อย่างมีประสิทธิภาพสูงสุด
+
+## 11. โครงสร้างรองรับ Android หลายแบรนด์และระบบปฏิบัติการเฉพาะ (Multi-Brand Android Support)
+* **Dynamic Path Resolver:** โครงสร้างการค้นหาและเข้าถึงไฟล์ `/Android/data/` ถูกออกแบบให้ยืดหยุ่น สามารถปรับตัวตามโครงสร้าง File System ที่อาจแตกต่างกันในมือถือแต่ละค่าย (เช่น Xiaomi, Samsung, Google Pixel)
+* **OS-Specific Optimizers:** ระบบมีโมดูลย่อยสำหรับจัดการ Background Service และการขอสิทธิ์ Battery No-Restrictions ที่ปรับแต่งมาเฉพาะสำหรับ OS แต่ละแบรนด์ (เช่น `HyperOsOptimizer` สำหรับ Xiaomi / HyperOS, `OneUiOptimizer` สำหรับ Samsung / OneUI) เพื่อให้การทำงานเบื้องหลัง (Auto-Sync) เสถียรที่สุดในทุกอุปกรณ์
