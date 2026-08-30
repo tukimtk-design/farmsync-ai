@@ -13,6 +13,8 @@
     <application
         android:allowBackup="true"
         android:label="FarmSync AI"
+        android:icon="@drawable/ic_launcher"
+        android:roundIcon="@drawable/ic_launcher"
         android:supportsRtl="true">
 
         <activity
