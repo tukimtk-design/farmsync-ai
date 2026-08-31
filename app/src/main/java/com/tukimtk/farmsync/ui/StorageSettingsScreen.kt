@@ -28,6 +28,6 @@ fun StorageSettingsScreen() {
     }
 
     if (showDialog.value) {
-        ApiKeyConfigDialog(onDismiss = { showDialog.value = false })
+        ApiKeyConfigDialog(onDismissRequest = { showDialog.value = false })
     }
 }
