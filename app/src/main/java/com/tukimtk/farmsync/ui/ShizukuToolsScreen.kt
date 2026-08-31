@@ -15,13 +15,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tukimtk.farmsync.game.stardew.ShizukuSaveBridge
 import com.tukimtk.farmsync.i18n.Strings
+import com.tukimtk.farmsync.shizuku.ShizukuState
 import com.tukimtk.farmsync.shizuku.ShizukuStateManager
 
 @Composable
 fun ShizukuToolsScreen() {
     val context = LocalContext.current
-    val isShizukuReady by ShizukuStateManager.isAvailable
-    val isBinderAlive by ShizukuStateManager.isBinderAlive
+    val shizukuState by ShizukuStateManager.state.collectAsState()
+    val isShizukuReady = shizukuState is ShizukuState.Ready
     val bridge = remember { ShizukuSaveBridge(context) }
     var scanResult by remember { mutableStateOf<String?>(null) }
 
@@ -38,6 +39,7 @@ fun ShizukuToolsScreen() {
             fontWeight = FontWeight.Bold
         )
 
+
         // Status Card
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -48,14 +50,12 @@ fun ShizukuToolsScreen() {
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(text = if (isShizukuReady) "🟢" else if (isBinderAlive) "🟡" else "⚪", fontSize = 18.sp)
+                    Text(text = if (isShizukuReady) "🟢" else "⚪", fontSize = 18.sp)
                     Text(
                         text = if (isShizukuReady) {
-                            Strings.get("สถานะ: เชื่อมต่อและพร้อมใช้งาน (100%)", "Status: Connected & Ready")
-                        } else if (isBinderAlive) {
-                            Strings.get("สถานะ: รอการอนุญาตสิทธิ์", "Status: Awaiting Permission")
+                            Strings.get("สถานะ: พร้อมใช้งาน", "Status: Ready")
                         } else {
-                            Strings.get("สถานะ: ปิดใช้งาน (ยังไม่พบ Shizuku)", "Status: Disabled (Shizuku Inactive)")
+                            Strings.get("สถานะ: ปิดใช้งาน", "Status: Disabled")
                         },
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp
@@ -65,7 +65,7 @@ fun ShizukuToolsScreen() {
                     text = if (isShizukuReady) {
                         Strings.get("ฟังก์ชันระดับสูงทั้งหมดปลดล็อกพร้อมใช้งาน", "All elevated features unlocked.")
                     } else {
-                        Strings.get("ฟังก์ชันเหล่านี้จำเป็นต้องใช้สิทธิ์ Shizuku เพื่อเข้าถึงโฟลเดอร์ /Android/data/", "Elevated permissions required to access /Android/data/")
+                        Strings.get("ฟังก์ชันเหล่านี้ไม่สามารถใช้งานได้เนื่องจาก Shizuku ยังไม่พร้อม (ขาดสิทธิ์หรือไม่ได้เปิดทำงาน)", "These features are disabled because Shizuku is not ready (missing permission or not running).")
                     },
                     fontSize = 13.sp,
                     color = if (isShizukuReady) MaterialTheme.colorScheme.onPrimaryContainer else Color.Gray
@@ -76,16 +76,16 @@ fun ShizukuToolsScreen() {
         if (!isShizukuReady) {
             Button(
                 onClick = {
-                    if (isBinderAlive) {
+                    if (shizukuState is ShizukuState.PermissionRequired) {
                         ShizukuStateManager.requestPermission()
                     } else {
-                        ShizukuStateManager.checkShizuku()
+                        ShizukuStateManager.refresh(context)
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp)
             ) {
-                Text(if (isBinderAlive) "🔑 ${Strings.get("ขอยืนยันสิทธิ์ Shizuku", "Authorize Shizuku")}" else "🔄 ${Strings.get("ตรวจสอบการเชื่อมต่อใหม่", "Verify Shizuku")}")
+                Text(if (shizukuState is ShizukuState.PermissionRequired) "🔑 ${Strings.get("ขอยืนยันสิทธิ์ Shizuku", "Authorize Shizuku")}" else "🔄 ${Strings.get("ตรวจสอบการเชื่อมต่อใหม่", "Verify Shizuku")}")
             }
         }
 

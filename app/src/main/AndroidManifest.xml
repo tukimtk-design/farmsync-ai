@@ -10,7 +10,10 @@
         <provider android:authorities="moe.shizuku.privileged.api" />
     </queries>
 
+    <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
+
     <application
+        android:name=".FarmSyncApp"
         android:allowBackup="true"
         android:label="FarmSync AI"
         android:icon="@mipmap/ic_launcher"
