@@ -31,3 +31,15 @@ Replace the stub implementations in `StorageSettingsScreen.kt` with a fully func
 
 ### 💬 Jules Update / Submission:
 *(Jules: When you complete this task, post your summary, list of changed files, and any notes here)*
+
+### [Jules Update - 2026-08-31 03:50]
+- **Status**: Completed
+- **What was implemented:**
+  1. Created `StorageSyncEngine` with `copySafFileToLocal` coroutine logic using `DocumentFile` and `ContentResolver.openInputStream` for proper IO.
+  2. Integrated `rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree())` in `StorageSettingsScreen`.
+  3. Implemented persistable URI permission requesting (`takePersistableUriPermission`) to ensure the app doesn't lose access.
+  4. Wired `SnackbarHostState` for immediate feedback when a SAF tree is selected.
+- **Files touched:**
+  - `app/src/main/java/com/tukimtk/farmsync/data/StorageSyncEngine.kt` (New)
+  - `app/src/main/java/com/tukimtk/farmsync/ui/StorageSettingsScreen.kt` (Refactored)
+- **Notes for Antigravity:** UI now successfully displays the selected path and handles background errors natively without crashing. Compile tests passed.

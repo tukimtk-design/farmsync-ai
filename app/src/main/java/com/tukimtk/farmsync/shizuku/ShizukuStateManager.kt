@@ -53,4 +53,3 @@ object ShizukuStateManager {
         } catch (_: Exception) {}
     }
 }
-

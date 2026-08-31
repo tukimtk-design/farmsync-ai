@@ -57,7 +57,7 @@ class ModInstaller(private val context: Context) {
 
             while (entry != null) {
                 val entryName = entry.name
-                
+
                 // Security check for Zip Slip vulnerability
                 if (entryName.contains("..")) {
                     entry = zipIn.nextEntry

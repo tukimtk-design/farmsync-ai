@@ -1,16 +1,9 @@
-package com.tukimtk.farmsync.ui
+import re
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import android.content.Intent
+with open("app/src/main/java/com/tukimtk/farmsync/ui/StorageSettingsScreen.kt", "r") as f:
+    content = f.read()
+
+imports_to_add = """import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.SnackbarHostState
@@ -19,11 +12,17 @@ import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import com.tukimtk.farmsync.data.StorageSyncEngine
-import android.net.Uri
+import android.net.Uri"""
 
-@Composable
-fun StorageSettingsScreen(snackbarHostState: SnackbarHostState = remember { SnackbarHostState() }) {
-    val showDialog = remember { mutableStateOf(false) }
+content = content.replace("import androidx.compose.ui.unit.dp", "import androidx.compose.ui.unit.dp\n" + imports_to_add)
+
+content = content.replace("fun StorageSettingsScreen() {", "fun StorageSettingsScreen(snackbarHostState: SnackbarHostState = remember { SnackbarHostState() }) {")
+
+old_block = """    val showDialog = remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {"""
+
+new_block = """    val showDialog = remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val syncEngine = remember { StorageSyncEngine(context) }
@@ -48,20 +47,22 @@ fun StorageSettingsScreen(snackbarHostState: SnackbarHostState = remember { Snac
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Local Storage Provider (SAF)")
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {"""
+
+content = content.replace(old_block, new_block)
+
+old_button = """        Text("Storage Provider: Google Drive (Selected)")
+        Button(onClick = { /* Switch provider */ }, modifier = Modifier.padding(bottom = 16.dp)) {
+            Text("Switch Provider (SMB / OneDrive)")
+        }"""
+
+new_button = """        Text("Local Storage Provider (SAF)")
         Text(text = "Current Path: ${selectedUri.value?.path ?: "None"}", color = androidx.compose.ui.graphics.Color.Gray, modifier = Modifier.padding(bottom = 8.dp))
         Button(onClick = { safLauncher.launch(null) }, modifier = Modifier.padding(bottom = 16.dp)) {
             Text("Select Sync Folder")
-        }
+        }"""
 
-        Text("AI Translation Settings")
-        Button(onClick = { showDialog.value = true }) {
-            Text("Configure API Key")
-        }
-    }
+content = content.replace(old_button, new_button)
 
-    if (showDialog.value) {
-        ApiKeyConfigDialog(onDismiss = { showDialog.value = false })
-    }
-}
+with open("app/src/main/java/com/tukimtk/farmsync/ui/StorageSettingsScreen.kt", "w") as f:
+    f.write(content)
