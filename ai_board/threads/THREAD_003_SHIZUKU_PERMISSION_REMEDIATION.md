@@ -1,0 +1,26 @@
+# Thread #003: Shizuku Permission Remediation
+
+- verified base branch: feature-farmsync-development-plan-1485016785988684098
+- verified HEAD: b53e1836707e6efb7c528d1e87dc8e9dd37026bf
+- exact changed paths:
+  - app/src/main/AndroidManifest.xml
+  - app/src/main/java/com/tukimtk/farmsync/FarmSyncApp.kt
+  - app/src/main/java/com/tukimtk/farmsync/MainActivity.kt
+  - app/src/main/java/com/tukimtk/farmsync/shizuku/OemHelper.kt
+  - app/src/main/java/com/tukimtk/farmsync/shizuku/ShizukuState.kt
+  - app/src/main/java/com/tukimtk/farmsync/shizuku/ShizukuStateManager.kt
+  - app/src/main/java/com/tukimtk/farmsync/ui/ShizukuOnboardingScreen.kt
+  - app/src/main/java/com/tukimtk/farmsync/ui/ShizukuToolsScreen.kt
+  - app/src/test/java/com/tukimtk/farmsync/shizuku/ShizukuStateEvaluatorTest.kt
+  - ai_board/threads/THREAD_003_SHIZUKU_PERMISSION_REMEDIATION.md
+- final state model: NotInstalled, NotRunning, VersionTooOld, PermissionRequired, RequiresManualAuthorization, Ready
+- listener ownership: Centralized in ShizukuStateManager.kt using addBinderReceivedListenerSticky
+- focused tests: ShizukuStateEvaluatorTest.kt passes all evaluations
+- relevant tests: app test passes
+- build result: PASS
+- device-only qualification still required: true
+- security-boundary confirmation: true
+- automatic retry count 0
+- Reviewer Findings: PENDING
+- Product Owner Decision: PENDING
+- Next-Phase Handoff: NOT AUTHORIZED

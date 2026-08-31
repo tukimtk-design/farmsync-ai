@@ -1,0 +1,10 @@
+{
+  "Name": "FarmSync Companion",
+  "Author": "tukimtk-design",
+  "Version": "1.0.0",
+  "Description": "Syncs saves to Android via SMB/Cloud with zero lag.",
+  "UniqueID": "com.tukimtk.farmsync.companion",
+  "EntryDll": "FarmSyncCompanion.dll",
+  "MinimumApiVersion": "4.0.0",
+  "UpdateKeys": []
+}

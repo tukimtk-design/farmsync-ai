@@ -1,0 +1,40 @@
+name: PC/Steam Deck Release Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-desktop:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Build Desktop Executable
+        run: ./gradlew :desktop:packageReleaseMsi
+      - name: Upload MSI
+        uses: actions/upload-artifact@v3
+        with:
+          name: FarmSync-Setup
+          path: desktop/build/compose/binaries/main/msi/
+
+  build-smapi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: 6.0.x
+      - name: Build C# Mod
+        run: dotnet build pc-mod/FarmSyncCompanion/FarmSyncCompanion.csproj -c Release
+      - name: Upload DLL
+        uses: actions/upload-artifact@v3
+        with:
+          name: FarmSyncCompanion-Mod
+          path: pc-mod/FarmSyncCompanion/bin/Release/net6.0/
