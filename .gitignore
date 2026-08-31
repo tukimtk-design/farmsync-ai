@@ -13,3 +13,8 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Gradle directories
+.gradle/
+build/
+app/build/
