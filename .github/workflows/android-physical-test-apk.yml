@@ -1,0 +1,62 @@
+name: Controlled Physical Test APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: 'Exact commit SHA to build'
+        required: true
+        default: '2a62e4184b89e284357ec7d697e663b59a4dd38a'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout explicit commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha }}
+
+      - name: Verify exact HEAD
+        run: |
+          HEAD_SHA=$(git rev-parse HEAD)
+          if [ "$HEAD_SHA" != "${{ inputs.commit_sha }}" ]; then
+            echo "Error: Checked out HEAD ($HEAD_SHA) does not match requested SHA (${{ inputs.commit_sha }})."
+            exit 1
+          fi
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Run Unit Tests
+        run: ./gradlew :app:testDebugUnitTest
+
+      - name: Assemble Debug APK
+        run: ./gradlew :app:assembleDebug
+
+      - name: Verify APK existence
+        run: |
+          if [ ! -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
+            echo "Error: APK was not generated at expected path."
+            exit 1
+          fi
+
+      - name: Rename and Hash APK
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk FarmSyncAI-physical-test-2a62e418.apk
+          sha256sum FarmSyncAI-physical-test-2a62e418.apk
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FarmSyncAI-Physical-Test-2a62e418
+          path: FarmSyncAI-physical-test-2a62e418.apk
+          retention-days: 5
