@@ -2,12 +2,11 @@ name: Controlled Physical Test APK
 
 on:
   workflow_dispatch:
-    inputs:
-      commit_sha:
-        description: 'Exact commit SHA to build'
-        required: true
-        default: '2a62e4184b89e284357ec7d697e663b59a4dd38a'
-        type: string
+
+env:
+  TARGET_SHA: 2a62e4184b89e284357ec7d697e663b59a4dd38a
+  APK_FILENAME: FarmSyncAI-physical-test-2a62e418.apk
+  ARTIFACT_NAME: FarmSyncAI-Physical-Test-2a62e418
 
 permissions:
   contents: read
@@ -15,22 +14,24 @@ permissions:
 jobs:
   build-test-apk:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - name: Checkout explicit commit
+      - name: Checkout accepted commit
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.commit_sha }}
+          ref: ${{ env.TARGET_SHA }}
+          persist-credentials: false
 
       - name: Verify exact HEAD
         run: |
-          HEAD_SHA=$(git rev-parse HEAD)
-          if [ "$HEAD_SHA" != "${{ inputs.commit_sha }}" ]; then
-            echo "Error: Checked out HEAD ($HEAD_SHA) does not match requested SHA (${{ inputs.commit_sha }})."
+          HEAD_SHA="$(git rev-parse HEAD)"
+          if [ "$HEAD_SHA" != "$TARGET_SHA" ]; then
+            echo "Error: checked-out commit does not match the authorized target."
             exit 1
           fi
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
@@ -51,12 +52,13 @@ jobs:
 
       - name: Rename and Hash APK
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk FarmSyncAI-physical-test-2a62e418.apk
-          sha256sum FarmSyncAI-physical-test-2a62e418.apk
+          cp app/build/outputs/apk/debug/app-debug.apk "$APK_FILENAME"
+          sha256sum "$APK_FILENAME"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FarmSyncAI-Physical-Test-2a62e418
-          path: FarmSyncAI-physical-test-2a62e418.apk
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ env.APK_FILENAME }}
           retention-days: 5
+          if-no-files-found: error
