@@ -26,6 +26,8 @@ import com.tukimtk.farmsync.game.stardew.EditableSaveData
 import com.tukimtk.farmsync.game.stardew.RealSaveSlot
 import com.tukimtk.farmsync.game.stardew.SaveHealthReport
 import com.tukimtk.farmsync.game.stardew.SaveRescueManager
+import com.tukimtk.farmsync.game.stardew.SaveScanResult
+import com.tukimtk.farmsync.game.stardew.ScanFailureReason
 import com.tukimtk.farmsync.game.stardew.ShizukuSaveBridge
 import com.tukimtk.farmsync.game.stardew.StardewSaveEditor
 import com.tukimtk.farmsync.i18n.Strings
@@ -42,7 +44,7 @@ fun SaveEditorScreen() {
     val rescueManager = remember { SaveRescueManager(context) }
 
     // Detected saves on device
-    var realSaves by remember { mutableStateOf<List<RealSaveSlot>>(emptyList()) }
+    var scanResult by remember { mutableStateOf<SaveScanResult>(SaveScanResult.Idle) }
     var selectedRealSlot by remember { mutableStateOf<RealSaveSlot?>(null) }
     var selectedTreeUri by remember { mutableStateOf<Uri?>(null) }
 
@@ -65,10 +67,12 @@ fun SaveEditorScreen() {
     var resultDialogMessage by remember { mutableStateOf("") }
 
     fun refreshSaves() {
-        val detected = bridge.scanRealSaves()
-        realSaves = detected
-        if (detected.isNotEmpty()) {
-            val first = detected.first()
+        if (scanResult is SaveScanResult.Scanning) return
+        scanResult = SaveScanResult.Scanning
+        val result = bridge.scanRealSaves()
+        scanResult = result
+        if (result is SaveScanResult.SavesFound) {
+            val first = result.saves.first()
             selectedRealSlot = first
             farmerName = first.farmerName
             farmName = first.farmName
@@ -79,7 +83,7 @@ fun SaveEditorScreen() {
 
             // Run Health Inspector
             val activeMods = repo.loadInstalledMods().filter { it.isEnabled }.map { it.name }
-            val rawXml = bridge.execCommand("cat ${first.folderPath}/SaveGameInfo")
+            val rawXml = bridge.execCommand("cat \"${first.folderPath}/SaveGameInfo\"")
             healthReport = rescueManager.inspectSaveHealth(rawXml, activeMods)
         }
     }
@@ -164,8 +168,10 @@ fun SaveEditorScreen() {
                     color = MaterialTheme.colorScheme.onSecondaryContainer
                 )
 
-                if (realSaves.isNotEmpty()) {
-                    realSaves.forEach { slot ->
+                if (scanResult is SaveScanResult.Scanning) {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally).padding(16.dp))
+                } else if (scanResult is SaveScanResult.SavesFound) {
+                    (scanResult as SaveScanResult.SavesFound).saves.forEach { slot ->
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -219,15 +225,29 @@ fun SaveEditorScreen() {
                             }
                         }
                     }
-                } else {
+                } else if (scanResult is SaveScanResult.NoSavesFound) {
                     Text(
                         text = Strings.get(
-                            "ยังไม่พบเซฟอัตโนมัติ (Android 14 Scoped Storage) คุณสามารถกดปุ่มด้านล่างเพื่อเลือกโฟลเดอร์เซฟ หรือเปิดใช้งาน Shizuku เพื่อตรวจจับอัตโนมัติได้ทันที",
-                            "No saves auto-detected due to Scoped Storage. Tap below to pick your save folder or enable Shizuku for 1-click access."
+                            "ไม่พบเซฟ Stardew Valley ในตำแหน่งที่รองรับ (อาจเกิดจากระบบความปลอดภัยของ Android / Scoped Storage จำกัดการเข้าถึงโฟลเดอร์เกมอื่น) กรุณาใช้ปุ่มเลือกโฟลเดอร์ด้วยตนเอง หรือเข้าเกมเพื่อสร้างเซฟใหม่",
+                            "No Stardew Valley saves found in supported locations (Android/data is restricted by Scoped Storage). Use the manual folder picker or create a new save in-game first."
                         ),
                         fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                        color = MaterialTheme.colorScheme.error
                     )
+                } else if (scanResult is SaveScanResult.ScanFailed) {
+                    val failMsg = when ((scanResult as SaveScanResult.ScanFailed).reason) {
+                        ScanFailureReason.ShizukuNotReady -> Strings.get("Shizuku ยังไม่พร้อมทำงาน กรุณาไปที่แท็บ Shizuku", "Shizuku is not ready. Go to Shizuku tab.")
+                        ScanFailureReason.AccessDenied -> Strings.get("ถูกปฏิเสธการเข้าถึงโฟลเดอร์เซฟ", "Access to save folder was denied.")
+                        ScanFailureReason.CommandFailed -> Strings.get("เกิดข้อผิดพลาดในการดึงข้อมูลโฟลเดอร์", "Failed to retrieve folder info.")
+                        else -> Strings.get("เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุระหว่างแสกน", "An unknown error occurred during scan.")
+                    }
+                    Text(
+                        text = "⚠️ $failMsg",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                } else if (scanResult is SaveScanResult.Idle) {
+                    // Start state
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
