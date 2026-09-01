@@ -23,13 +23,11 @@ data class RealSaveSlot(
 
 class ShizukuSaveBridge(private val context: Context) {
 
-    private val searchPaths = listOf(
-        "/storage/emulated/0/Android/data/com.zane.stardewvalley/files/saves",
-        "/storage/emulated/0/Android/data/com.zane.stardewvalley/files",
-        "/storage/emulated/0/Android/data/com.zane.stardewvalley/saves",
-        "/storage/emulated/0/StardewValley/Saves",
-        "/storage/emulated/0/StardewValley"
-    )
+    // Internal hooks for testing without real Android context/Shizuku
+    internal var permissionOverride: Boolean? = null
+    internal var shellExecutor: ((String) -> Pair<Int, String>)? = null
+
+    // Removed hardcoded legacy searchPaths and replaced with logic for explicit candidate packages
 
     private var cachedNewProcessMethod: Method? = null
 
@@ -45,6 +43,7 @@ class ShizukuSaveBridge(private val context: Context) {
     }
 
     fun isBinderAlive(): Boolean {
+        if (permissionOverride != null) return true
         return try {
             Shizuku.pingBinder()
         } catch (_: Exception) {
@@ -53,6 +52,7 @@ class ShizukuSaveBridge(private val context: Context) {
     }
 
     fun isPermissionGranted(): Boolean {
+        if (permissionOverride != null) return permissionOverride!!
         return try {
             isBinderAlive() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
         } catch (_: Exception) {
@@ -78,55 +78,126 @@ class ShizukuSaveBridge(private val context: Context) {
             } else {
                 Runtime.getRuntime().exec(arrayOf("sh", "-c", cmd))
             }
-            process.inputStream.bufferedReader().readText().trim()
+            val text = process.inputStream.bufferedReader().readText().trim()
+            process.waitFor()
+            text
         } catch (e: Exception) {
             ""
         }
     }
 
     /**
+     * Helper to execute a command and return an object indicating success/failure
+     */
+    private fun execCommandWithResult(cmd: String): Pair<Int, String> {
+        if (shellExecutor != null) {
+            return shellExecutor!!.invoke(cmd)
+        }
+        return try {
+            val process = if (isPermissionGranted() && cachedNewProcessMethod != null) {
+                cachedNewProcessMethod!!.invoke(null, arrayOf("sh", "-c", cmd), null, null) as Process
+            } else {
+                Runtime.getRuntime().exec(arrayOf("sh", "-c", cmd))
+            }
+            val output = process.inputStream.bufferedReader().readText().trim()
+            val exitCode = process.waitFor()
+            Pair(exitCode, output)
+        } catch (e: Exception) {
+            Pair(-1, "")
+        }
+    }
+
+
+    /**
      * Scans real save folders on device across all possible Stardew Valley directories
      */
-    fun scanRealSaves(): List<RealSaveSlot> {
-        val list = mutableListOf<RealSaveSlot>()
+    fun scanRealSaves(): SaveScanResult {
+        try {
+        if (!isPermissionGranted()) {
+            return SaveScanResult.ScanFailed(ScanFailureReason.ShizukuNotReady)
+        }
 
-        for (basePath in searchPaths) {
-            if (isPermissionGranted()) {
-                val output = execCommand("ls -1 $basePath")
+        val candidatePaths = listOf(
+            "/storage/emulated/0/Android/data/com.chucklefish.stardewvalley/files/Saves",
+            "/storage/emulated/0/Android/data/com.chucklefish.stardewvalley/files/saves",
+            "/storage/emulated/0/Android/data/com.zane.stardewvalley/files/Saves",
+            "/storage/emulated/0/Android/data/com.zane.stardewvalley/files/saves",
+            "/storage/emulated/0/StardewValley"
+        )
+
+        var foundSaves = mutableListOf<RealSaveSlot>()
+        var foundAnyValidRoot = false
+        var commandFailed = false
+        var accessDenied = false
+
+        for (basePath in candidatePaths) {
+            val (exitCode, output) = execCommandWithResult("ls -1 \"$basePath\"")
+
+            if (exitCode == 0) {
+                foundAnyValidRoot = true
+
                 if (output.isNotBlank()) {
                     val entries = output.split("\n").map { it.trim() }.filter { it.isNotBlank() }
                     for (entry in entries) {
-                        val infoXml = execCommand("cat $basePath/$entry/SaveGameInfo")
-                        if (infoXml.isNotBlank() && (infoXml.contains("<SaveGame", ignoreCase = true) || infoXml.contains("<Farmer", ignoreCase = true))) {
-                            val parsed = parseInfoContent(entry, "$basePath/$entry", infoXml)
-                            if (list.none { it.folderName == parsed.folderName }) {
-                                list.add(parsed)
-                            }
+                        // Filter backup artifacts
+                        if (entry.contains("_SVBAK", ignoreCase = true) || entry.contains("_old", ignoreCase = true) || entry.contains("_SVEMERG", ignoreCase = true)) {
+                            continue
                         }
-                    }
-                }
-            }
+                        // Validate entry is a directory and contains SaveGameInfo
+                        val (infoExitCode, infoXml) = execCommandWithResult("cat \"$basePath/$entry/SaveGameInfo\"")
+                        val (mainExitCode, _) = execCommandWithResult("cat \"$basePath/$entry/$entry\"")
 
-            // Direct File API fallback
-            try {
-                val dir = File(basePath)
-                if (dir.exists() && dir.isDirectory) {
-                    dir.listFiles()?.forEach { folder ->
-                        if (folder.isDirectory) {
-                            val infoFile = File(folder, "SaveGameInfo")
-                            if (infoFile.exists()) {
-                                val parsed = parseInfoContent(folder.name, folder.absolutePath, infoFile.readText())
-                                if (list.none { it.folderName == parsed.folderName }) {
-                                    list.add(parsed)
+                        if (infoExitCode == 0 && mainExitCode == 0 && infoXml.isNotBlank() && (infoXml.contains("<SaveGame", ignoreCase = true) || infoXml.contains("<Farmer", ignoreCase = true))) {
+                            try {
+                                val parsed = parseInfoContent(entry, "$basePath/$entry", infoXml)
+                                if (foundSaves.none { it.folderName == parsed.folderName }) {
+                                    foundSaves.add(parsed)
                                 }
+                            } catch (e: Exception) {
+                                // Skip malformed
                             }
                         }
                     }
                 }
-            } catch (_: Exception) {}
+
+                // If we found a valid official app folder, prefer it and don't scan legacy unless it's empty?
+                // The requirements say "Prefer the installed official package when package evidence is available... Deduplicate equivalent or alias-resolved roots."
+                // Wait, if it exists we scan it. Since we dedup by folderName, if multiple candidates point to the same content (alias), it gets deduped.
+            } else if (exitCode != 0) {
+                 // Check if it's access denied vs not found
+                 val (testExitCode, testOutput) = execCommandWithResult("ls -ld \"$basePath\"")
+                 if (testExitCode != 0 && testOutput.contains("Permission denied", ignoreCase = true)) {
+                     accessDenied = true
+                 } else if (exitCode != 0 && !testOutput.contains("No such file", ignoreCase = true) && testOutput.isNotBlank()) {
+                     commandFailed = true
+                 }
+            }
         }
 
-        return list
+        if (foundSaves.isNotEmpty()) {
+            return SaveScanResult.SavesFound(foundSaves)
+        }
+
+        if (accessDenied) {
+            return SaveScanResult.ScanFailed(ScanFailureReason.AccessDenied)
+        }
+
+        if (commandFailed) {
+            return SaveScanResult.ScanFailed(ScanFailureReason.CommandFailed)
+        }
+
+        if (foundAnyValidRoot && foundSaves.isEmpty()) {
+            return SaveScanResult.NoSavesFound
+        }
+
+        if (!foundAnyValidRoot) {
+            return SaveScanResult.NoSavesFound
+        }
+
+        return SaveScanResult.ScanFailed(ScanFailureReason.UnexpectedFailure)
+        } catch (e: Exception) {
+            return SaveScanResult.ScanFailed(ScanFailureReason.UnexpectedFailure)
+        }
     }
 
     /**
@@ -137,8 +208,8 @@ class ShizukuSaveBridge(private val context: Context) {
             val folderName = slotPath.substringAfterLast("/")
 
             if (isPermissionGranted()) {
-                val originalMain = execCommand("cat $slotPath/$folderName")
-                val originalInfo = execCommand("cat $slotPath/SaveGameInfo")
+                val originalMain = execCommand("cat \"$slotPath/$folderName\"")
+                val originalInfo = execCommand("cat \"$slotPath/SaveGameInfo\"")
 
                 val updatedMain = editor.applyEditsToXml(originalMain.ifBlank { "<SaveGame></SaveGame>" }, edits)
                 val updatedInfo = editor.applyEditsToXml(originalInfo.ifBlank { updatedMain }, edits)
@@ -147,10 +218,10 @@ class ShizukuSaveBridge(private val context: Context) {
                 val tempMain = File(tempDir, folderName).apply { writeText(updatedMain) }
                 val tempInfo = File(tempDir, "SaveGameInfo").apply { writeText(updatedInfo) }
 
-                execCommand("cp ${tempMain.absolutePath} $slotPath/$folderName")
-                execCommand("cp ${tempInfo.absolutePath} $slotPath/SaveGameInfo")
-                execCommand("chmod 666 $slotPath/$folderName")
-                execCommand("chmod 666 $slotPath/SaveGameInfo")
+                execCommand("cp \"${tempMain.absolutePath}\" \"$slotPath/$folderName\"")
+                execCommand("cp \"${tempInfo.absolutePath}\" \"$slotPath/SaveGameInfo\"")
+                execCommand("chmod 666 \"$slotPath/$folderName\"")
+                execCommand("chmod 666 \"$slotPath/SaveGameInfo\"")
 
                 return true
             }
