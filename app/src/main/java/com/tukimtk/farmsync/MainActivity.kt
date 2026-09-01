@@ -38,7 +38,7 @@ import com.tukimtk.farmsync.ui.SuccessFeedbackDialog
 
 
 class MainActivity : ComponentActivity() {
-    private var incomingZipUri: Uri? = null
+    private var incomingZipUriState = mutableStateOf<Uri?>(null)
 
 
     override fun onResume() {
@@ -50,14 +50,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         if (intent?.action == Intent.ACTION_VIEW) {
-            incomingZipUri = intent.data
+            incomingZipUriState.value = intent.data
         }
 
         setContent {
             FarmSyncAppTheme {
                 MainAppScaffold(
-                    incomingZipUri = incomingZipUri,
-                    onClearIncomingZip = { incomingZipUri = null }
+                    incomingZipUri = incomingZipUriState.value,
+                    onClearIncomingZip = { incomingZipUriState.value = null }
                 )
             }
         }
@@ -66,15 +66,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
         if (intent?.action == Intent.ACTION_VIEW) {
-            incomingZipUri = intent.data
-            setContent {
-                FarmSyncAppTheme {
-                    MainAppScaffold(
-                        incomingZipUri = incomingZipUri,
-                        onClearIncomingZip = { incomingZipUri = null }
-                    )
-                }
-            }
+            incomingZipUriState.value = intent.data
         }
     }
 

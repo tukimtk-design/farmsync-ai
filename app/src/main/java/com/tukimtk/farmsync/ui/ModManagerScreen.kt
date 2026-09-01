@@ -191,8 +191,16 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
             }
 
             if (existing != null) {
-                // Mod is genuinely the same mod -> prompt for update
-                pendingUpdate = PendingUpdateInfo(existingMod = existing, newResult = result)
+                // Mod is genuinely the same mod -> prompt for update if different version
+                val comp = com.tukimtk.farmsync.mods.compareVersions(result.version, existing.version)
+                if (comp == 0) {
+                    showInstallDialog = Strings.get(
+                        "✓ ม็อด '${result.modName}' เป็นเวอร์ชันล่าสุด (${result.version}) อยู่แล้ว!",
+                        "✓ Mod '${result.modName}' is already installed at this version (${result.version})!"
+                    )
+                } else {
+                    pendingUpdate = PendingUpdateInfo(existingMod = existing, newResult = result)
+                }
             } else {
                 // Brand new distinct mod -> append directly!
                 applyModInstall(result)
