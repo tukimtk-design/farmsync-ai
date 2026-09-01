@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
 
 env:
-  TARGET_SHA: 2a62e4184b89e284357ec7d697e663b59a4dd38a
-  APK_FILENAME: FarmSyncAI-physical-test-2a62e418.apk
-  ARTIFACT_NAME: FarmSyncAI-Physical-Test-2a62e418
+  TARGET_SHA: 6ffdc7396c78b9f662522856bc1ca9322a1c4e5e
+  APK_FILENAME: FarmSyncAI-save-scan-test-6ffdc739.apk
+  ARTIFACT_NAME: FarmSyncAI-Save-Scan-Test-6ffdc739
 
 permissions:
   contents: read
