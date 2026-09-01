@@ -111,6 +111,99 @@ class ShizukuSaveBridge(private val context: Context) {
     /**
      * Scans real save folders on device across all possible Stardew Valley directories
      */
+
+    data class CommandResult(
+        val exitCode: Int,
+        val stdout: String,
+        val stderr: String,
+        val isTimeout: Boolean
+    )
+
+    fun execBoundedCommand(cmd: String, timeoutMs: Long = 5000): CommandResult {
+        if (shellExecutor != null) {
+            val res = shellExecutor!!.invoke(cmd)
+            return CommandResult(res.first, res.second, "", false)
+        }
+        return try {
+            val process = if (isPermissionGranted() && cachedNewProcessMethod != null) {
+                cachedNewProcessMethod!!.invoke(null, arrayOf("sh", "-c", cmd), null, null) as Process
+            } else {
+                Runtime.getRuntime().exec(arrayOf("sh", "-c", cmd))
+            }
+
+            process.outputStream.close()
+
+            var stdoutStr = ""
+            var stderrStr = ""
+            var isTimeout = false
+
+            val stdoutThread = Thread {
+                try {
+                    stdoutStr = process.inputStream.bufferedReader().use { it.readText().take(1024 * 512).trim() }
+                } catch (_: Exception) {}
+            }
+            val stderrThread = Thread {
+                try {
+                    stderrStr = process.errorStream.bufferedReader().use { it.readText().take(1024 * 512).trim() }
+                } catch (_: Exception) {}
+            }
+
+            stdoutThread.start()
+            stderrThread.start()
+
+            val finished = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                process.waitFor(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
+            } else {
+                var waited = 0L
+                val step = 100L
+                while (waited < timeoutMs) {
+                    try {
+                        process.exitValue()
+                        break
+                    } catch (e: IllegalThreadStateException) {
+                        Thread.sleep(step)
+                        waited += step
+                    }
+                }
+                try {
+                    process.exitValue()
+                    true
+                } catch (e: IllegalThreadStateException) {
+                    false
+                }
+            }
+
+            if (!finished) {
+                isTimeout = true
+                process.destroy()
+            }
+
+            stdoutThread.join(500)
+            stderrThread.join(500)
+
+            val exitCode = if (isTimeout) -1 else process.exitValue()
+            CommandResult(exitCode, stdoutStr, stderrStr, isTimeout)
+        } catch (e: Exception) {
+            CommandResult(-1, "", "", false)
+        }
+    }
+
+    fun validatePath(path: String): Boolean {
+        if (path.contains("..")) return false
+        if (path.contains("\n") || path.contains("\r")) return false
+        if (path.contains("\u0000")) return false
+        if (path.contains("'") || path.contains("\"") || path.contains("`") || path.contains("$") || path.contains("&") || path.contains("|") || path.contains(";") || path.contains("<") || path.contains(">")) return false
+
+        val validRoots = listOf(
+            "/storage/emulated/0/Android/data/com.chucklefish.stardewvalley/files/Saves",
+            "/storage/emulated/0/Android/data/com.chucklefish.stardewvalley/files/saves",
+            "/storage/emulated/0/Android/data/com.zane.stardewvalley/files/Saves",
+            "/storage/emulated/0/Android/data/com.zane.stardewvalley/files/saves",
+            "/storage/emulated/0/StardewValley"
+        )
+        return validRoots.any { path.startsWith(it) }
+    }
+
     fun scanRealSaves(): SaveScanResult {
         try {
         if (!isPermissionGranted()) {
@@ -203,40 +296,126 @@ class ShizukuSaveBridge(private val context: Context) {
     /**
      * Writes updated XML to save folder via Shizuku shell with full file permission
      */
-    fun writeSaveWithProtection(slotPath: String, edits: EditableSaveData, editor: StardewSaveEditor): Boolean {
-        return try {
+    private fun getSha256(filePath: String): String {
+        val res = execBoundedCommand("sha256sum \"$filePath\"")
+        if (res.exitCode == 0 && res.stdout.isNotBlank()) {
+            return res.stdout.substringBefore(" ").trim()
+        }
+        return ""
+    }
+
+    private fun getSha256Str(content: String): String {
+        val md = java.security.MessageDigest.getInstance("SHA-256")
+        val hash = md.digest(content.toByteArray(Charsets.UTF_8))
+        return hash.joinToString("") { "%02x".format(it) }
+    }
+
+    fun writeSaveWithProtection(slotPath: String, edits: EditableSaveData, editor: StardewSaveEditor, rescueManager: SaveRescueManager? = null): SaveWriteResult {
+        try {
+            if (!isPermissionGranted()) return SaveWriteResult.ShizukuNotReady
+            if (!validatePath(slotPath)) return SaveWriteResult.InvalidDestination
+
             val folderName = slotPath.substringAfterLast("/")
+            val mainSavePath = "$slotPath/$folderName"
+            val infoSavePath = "$slotPath/SaveGameInfo"
 
-            if (isPermissionGranted()) {
-                val originalMain = execCommand("cat \"$slotPath/$folderName\"")
-                val originalInfo = execCommand("cat \"$slotPath/SaveGameInfo\"")
+            // Validate existence
+            if (execBoundedCommand("test -f \"$mainSavePath\"").exitCode != 0) return SaveWriteResult.InvalidDestination
+            if (execBoundedCommand("test -f \"$infoSavePath\"").exitCode != 0) return SaveWriteResult.InvalidDestination
 
-                val updatedMain = editor.applyEditsToXml(originalMain.ifBlank { "<SaveGame></SaveGame>" }, edits)
-                val updatedInfo = editor.applyEditsToXml(originalInfo.ifBlank { updatedMain }, edits)
-
-                val tempDir = File(context.cacheDir, "shizuku_temp").apply { mkdirs() }
-                val tempMain = File(tempDir, folderName).apply { writeText(updatedMain) }
-                val tempInfo = File(tempDir, "SaveGameInfo").apply { writeText(updatedInfo) }
-
-                execCommand("cp \"${tempMain.absolutePath}\" \"$slotPath/$folderName\"")
-                execCommand("cp \"${tempInfo.absolutePath}\" \"$slotPath/SaveGameInfo\"")
-                execCommand("chmod 666 \"$slotPath/$folderName\"")
-                execCommand("chmod 666 \"$slotPath/SaveGameInfo\"")
-
-                return true
+            // Backup
+            if (rescueManager != null) {
+                val backup = rescueManager.createSnapshotBackup(java.io.File(slotPath), "PreEdit")
+                if (backup == null || backup.sizeBytes == 0L || !backup.zipFile.exists()) {
+                    return SaveWriteResult.BackupFailed
+                }
             }
 
-            // Fallback direct write
-            val targetFolder = File(slotPath)
-            if (targetFolder.exists() && targetFolder.isDirectory) {
-                return editor.saveToDirectory(targetFolder, edits)
+            // 1. Encode
+            val originalMainRes = execBoundedCommand("cat \"$mainSavePath\"")
+            val originalInfoRes = execBoundedCommand("cat \"$infoSavePath\"")
+            if (originalMainRes.exitCode != 0 || originalInfoRes.exitCode != 0) return SaveWriteResult.UnexpectedFailure
+
+            val updatedMain = editor.applyEditsToXml(originalMainRes.stdout.ifBlank { "<SaveGame></SaveGame>" }, edits)
+            val updatedInfo = editor.applyEditsToXml(originalInfoRes.stdout.ifBlank { updatedMain }, edits)
+
+            // 2. SHA-256 Intended
+            val intendedMainHash = getSha256Str(updatedMain)
+            val intendedInfoHash = getSha256Str(updatedInfo)
+
+            // App-private files
+            val tempDir = java.io.File(context.cacheDir, "shizuku_temp").apply { mkdirs() }
+            val tempMain = java.io.File(tempDir, folderName).apply { writeText(updatedMain) }
+            val tempInfo = java.io.File(tempDir, "SaveGameInfo").apply { writeText(updatedInfo) }
+
+            // 3. Staged Copy
+            val stagedMainPath = "$slotPath/${folderName}_staged"
+            val stagedInfoPath = "$slotPath/SaveGameInfo_staged"
+
+            val stageMainRes = execBoundedCommand("cp \"${tempMain.absolutePath}\" \"$stagedMainPath\"")
+            if (stageMainRes.exitCode != 0) return SaveWriteResult.MainSaveStageFailed
+
+            val stageInfoRes = execBoundedCommand("cp \"${tempInfo.absolutePath}\" \"$stagedInfoPath\"")
+            if (stageInfoRes.exitCode != 0) return SaveWriteResult.SaveGameInfoStageFailed
+
+            // 5. Verify Staged
+            val stagedMainHash = getSha256(stagedMainPath)
+            val stagedInfoHash = getSha256(stagedInfoPath)
+
+            if (stagedMainHash != intendedMainHash) return SaveWriteResult.VerificationFailed
+            if (stagedInfoHash != intendedInfoHash) return SaveWriteResult.VerificationFailed
+
+            // 7. Replace live files
+            val replaceMainRes = execBoundedCommand("mv \"$stagedMainPath\" \"$mainSavePath\"")
+            if (replaceMainRes.exitCode != 0) return SaveWriteResult.MainSaveReplaceFailed
+
+            val replaceInfoRes = execBoundedCommand("mv \"$stagedInfoPath\" \"$infoSavePath\"")
+            if (replaceInfoRes.exitCode != 0) {
+                // Rollback Info Failed, try to restore main save
+                if (rescueManager != null) {
+                    val backups = rescueManager.listSnapshots()
+                    val latest = backups.firstOrNull { it.farmName == folderName.substringBefore("_") }
+                    if (latest != null) {
+                        val ok = rescueManager.restoreSnapshot(latest, java.io.File(slotPath).parentFile)
+                        if (!ok) return SaveWriteResult.RollbackFailed
+                    } else {
+                        return SaveWriteResult.RollbackFailed
+                    }
+                } else {
+                     return SaveWriteResult.RollbackFailed
+                }
+                return SaveWriteResult.SaveGameInfoReplaceFailed
             }
 
-            false
-        } catch (_: Exception) {
-            false
+            // 9. Verify Final
+            val finalMainHash = getSha256(mainSavePath)
+            val finalInfoHash = getSha256(infoSavePath)
+
+            if (finalMainHash != intendedMainHash) return SaveWriteResult.VerificationFailed
+            if (finalInfoHash != intendedInfoHash) return SaveWriteResult.VerificationFailed
+
+            // 10. Reload physical
+            val reloadInfoRes = execBoundedCommand("cat \"$infoSavePath\"")
+            if (reloadInfoRes.exitCode != 0) return SaveWriteResult.ReloadFailed
+
+            try {
+                val parsed = parseInfoContent(folderName, slotPath, reloadInfoRes.stdout)
+                // 11. Verify fields
+                if (parsed.money != edits.money) return SaveWriteResult.VerificationFailed
+            } catch (e: Exception) {
+                return SaveWriteResult.ReloadFailed
+            }
+
+            // Cleanup temp
+            tempMain.delete()
+            tempInfo.delete()
+
+            return SaveWriteResult.SuccessVerified
+        } catch (e: Exception) {
+            return SaveWriteResult.UnexpectedFailure
         }
     }
+
 
     /**
      * Modifies save files directly inside a SAF DocumentFile folder

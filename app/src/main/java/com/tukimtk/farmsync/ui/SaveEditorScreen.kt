@@ -27,6 +27,7 @@ import com.tukimtk.farmsync.game.stardew.RealSaveSlot
 import com.tukimtk.farmsync.game.stardew.SaveHealthReport
 import com.tukimtk.farmsync.game.stardew.SaveRescueManager
 import com.tukimtk.farmsync.game.stardew.SaveScanResult
+import com.tukimtk.farmsync.game.stardew.SaveWriteResult
 import com.tukimtk.farmsync.game.stardew.ScanFailureReason
 import com.tukimtk.farmsync.game.stardew.ShizukuSaveBridge
 import com.tukimtk.farmsync.game.stardew.StardewSaveEditor
@@ -65,6 +66,7 @@ fun SaveEditorScreen() {
 
     var showSuccessDialog by remember { mutableStateOf(false) }
     var resultDialogMessage by remember { mutableStateOf("") }
+    var isWriting by remember { mutableStateOf(false) }
 
     fun refreshSaves() {
         if (scanResult is SaveScanResult.Scanning) return
@@ -439,6 +441,8 @@ fun SaveEditorScreen() {
         // Action Button: Save & Apply
         Button(
             onClick = {
+                if (isWriting) return@Button
+                isWriting = true
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
 
                 val updatedData = EditableSaveData(
@@ -452,39 +456,43 @@ fun SaveEditorScreen() {
                     maxStamina = maxStamina.toInt()
                 )
 
-                // 1. Create Pre-Save Snapshot Backup FIRST for 100% safety
-                if (selectedRealSlot != null) {
-                    val folder = File(selectedRealSlot!!.folderPath)
-                    rescueManager.createSnapshotBackup(folder, "PreEdit")
-                }
-
-                // 2. Persist in SharedPreferences
                 repo.persistSaveData(updatedData)
 
-                // 3. Write to real game save slot
-                var writeSuccess = false
+                var writeResult: SaveWriteResult = SaveWriteResult.UnexpectedFailure
                 if (selectedRealSlot != null) {
-                    writeSuccess = bridge.writeSaveWithProtection(selectedRealSlot!!.folderPath, updatedData, saveEditor)
+                    writeResult = bridge.writeSaveWithProtection(selectedRealSlot!!.folderPath, updatedData, saveEditor, rescueManager)
+                } else if (selectedTreeUri != null) {
+                    val fallbackSuccess = bridge.writeToDocumentTree(selectedTreeUri!!, updatedData, saveEditor)
+                    if (fallbackSuccess) writeResult = SaveWriteResult.SuccessVerified
                 }
 
-                if (!writeSuccess && selectedTreeUri != null) {
-                    writeSuccess = bridge.writeToDocumentTree(selectedTreeUri!!, updatedData, saveEditor)
-                }
-
-                resultDialogMessage = if (writeSuccess) {
-                    Strings.get(
-                        "✓ บันทึกค่าลงไฟล์เซฟจริงและสร้างจุดสำรอง Snapshot อัตโนมัติเรียบร้อยแล้ว!\n(ชื่อฟาร์ม: $farmName | เงิน: ${money}g | วันที่: $selectedSeason วันที่ ${dayOfMonth.toInt()} ปี $year)\n\nหากต้องการย้อนกลับ สามารถกดปุ่ม '🛟 กู้คืนเซฟ' ได้ตลอดเวลา!",
-                        "✓ Successfully written to real save and created a safety snapshot backup!\n(Farm: $farmName | Gold: ${money}g)\n\nYou can restore any prior version anytime via 'Save Rescue'!"
+                if (writeResult == SaveWriteResult.SuccessVerified) {
+                    resultDialogMessage = Strings.get(
+                        "บันทึกและตรวจสอบไฟล์เซฟจริงแล้ว",
+                        "บันทึกและตรวจสอบไฟล์เซฟจริงแล้ว"
                     )
                 } else {
-                    Strings.get(
-                        "✓ บันทึกการตั้งค่าในระบบเรียบร้อยแล้ว! (หากต้องการเขียนลงโฟลเดอร์เซฟของตัวเกมโดยตรง กรุณากดปุ่ม '📂 เลือกโฟลเดอร์เซฟ' ด้านบน หรือเปิดสิทธิ์ Shizuku)",
-                        "✓ Configuration saved in app! (To write directly into the game directory, please tap '📂 Pick Save Folder' above or enable Shizuku)"
-                    )
+                    val errReason = when (writeResult) {
+                        is SaveWriteResult.BackupFailed -> "BackupFailed"
+                        is SaveWriteResult.ShizukuNotReady -> "ShizukuNotReady"
+                        is SaveWriteResult.InvalidDestination -> "InvalidDestination"
+                        is SaveWriteResult.MainSaveStageFailed -> "MainSaveStageFailed"
+                        is SaveWriteResult.SaveGameInfoStageFailed -> "SaveGameInfoStageFailed"
+                        is SaveWriteResult.MainSaveReplaceFailed -> "MainSaveReplaceFailed"
+                        is SaveWriteResult.SaveGameInfoReplaceFailed -> "SaveGameInfoReplaceFailed"
+                        is SaveWriteResult.PermissionDenied -> "PermissionDenied"
+                        is SaveWriteResult.VerificationFailed -> "VerificationFailed"
+                        is SaveWriteResult.ReloadFailed -> "ReloadFailed"
+                        is SaveWriteResult.RollbackFailed -> "RollbackFailed"
+                        else -> "UnexpectedFailure"
+                    }
+                    resultDialogMessage = "Error: $errReason"
                 }
 
                 showSuccessDialog = true
+                isWriting = false
             },
+            enabled = !isWriting,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
