@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
 
 env:
-  TARGET_SHA: 6ffdc7396c78b9f662522856bc1ca9322a1c4e5e
-  APK_FILENAME: FarmSyncAI-save-scan-test-6ffdc739.apk
-  ARTIFACT_NAME: FarmSyncAI-Save-Scan-Test-6ffdc739
+  TARGET_SHA: b0da57fb30823cc636244cea7e25dc4245d9190c
+  APK_FILENAME: FarmSyncAI-complete-test-b0da57fb.apk
+  ARTIFACT_NAME: FarmSyncAI-Complete-Test-b0da57fb
 
 permissions:
   contents: read
@@ -62,3 +62,6 @@ jobs:
           path: ${{ env.APK_FILENAME }}
           retention-days: 5
           if-no-files-found: error
+
+
+
