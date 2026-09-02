@@ -8,6 +8,7 @@ import java.io.FileOutputStream
 import java.io.InputStream
 import java.util.zip.ZipInputStream
 import org.json.JSONObject
+import com.tukimtk.farmsync.game.stardew.ShizukuSaveBridge
 
 data class ModInstallResult(
     val isSuccess: Boolean,
@@ -16,6 +17,7 @@ data class ModInstallResult(
     val author: String,
     val version: String,
     val extractedFilesCount: Int,
+    val deployedFolderName: String,
     val message: String
 )
 
@@ -38,7 +40,7 @@ class ModInstaller(private val context: Context) {
         return try {
             val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
             if (inputStream == null) {
-                return ModInstallResult(false, "", "Unknown", "Unknown", "Unknown", 0, "Cannot open file stream")
+                return ModInstallResult(false, "", "Unknown", "Unknown", "Unknown", 0, "", "Cannot open file stream")
             }
 
             // 1. Get real file display name from ContentResolver
@@ -59,12 +61,13 @@ class ModInstaller(private val context: Context) {
                 .replace("_", " ")
                 .trim()
 
-            val modsDir = File(context.getExternalFilesDir(null), "Mods").apply { mkdirs() }
+            val stagingDir = File(context.cacheDir, "mod_staging_${System.currentTimeMillis()}").apply { mkdirs() }
 
             val zipIn = ZipInputStream(inputStream)
             var entry = zipIn.nextEntry
             var fileCount = 0
             val manifestCandidates = mutableListOf<String>()
+            val extractedManifestPaths = mutableListOf<String>()
 
             val buffer = ByteArray(8192)
 
@@ -77,7 +80,7 @@ class ModInstaller(private val context: Context) {
                     continue
                 }
 
-                val outFile = File(modsDir, entryName)
+                val outFile = File(stagingDir, entryName)
 
                 if (entry.isDirectory) {
                     outFile.mkdirs()
@@ -93,6 +96,7 @@ class ModInstaller(private val context: Context) {
 
                     if (entryName.endsWith("manifest.json", ignoreCase = true)) {
                         manifestCandidates.add(outFile.readText())
+                        extractedManifestPaths.add(outFile.absolutePath)
                     }
                 }
                 zipIn.closeEntry()
@@ -130,22 +134,92 @@ class ModInstaller(private val context: Context) {
                 }
             }
 
+            // Identify primary mod folder
+            var sourceModFolder = stagingDir
+            if (extractedManifestPaths.isNotEmpty()) {
+                // Heuristic: shortest path to manifest is likely the main one
+                val mainManifestPath = extractedManifestPaths.minByOrNull { it.length }
+                if (mainManifestPath != null) {
+                    sourceModFolder = File(mainManifestPath).parentFile ?: stagingDir
+                }
+            }
+
+            // Fallback: If the root has no manifest, but there's exactly one folder inside, use it
+            if (extractedManifestPaths.isEmpty()) {
+                val subdirs = stagingDir.listFiles { f -> f.isDirectory }
+                if (subdirs != null && subdirs.size == 1) {
+                    sourceModFolder = subdirs[0]
+                }
+            }
+
             // Cleanup mod name if it has brackets like [CP] Ridgeside Village -> Ridgeside Village
             val displayModName = if (modName.startsWith("[") && modName.contains("]")) {
                 modName.substringAfter("]").trim()
             } else {
                 modName
             }
+            val finalModName = displayModName.ifBlank { cleanFileName }
+            
+            // Generate a safe folder name
+            val safeFolderName = uniqueId.replace(Regex("[^a-zA-Z0-9_\\-\\.]"), "_").ifBlank { finalModName.replace(" ", "_") }
 
-            ModInstallResult(
-                isSuccess = true,
-                uniqueId = uniqueId,
-                modName = displayModName.ifBlank { cleanFileName },
-                author = author,
-                version = version,
-                extractedFilesCount = fileCount,
-                message = "Mod '$displayModName' ($version) installed successfully! ($fileCount files extracted)"
+            // Deploy via Shizuku
+            val bridge = ShizukuSaveBridge(context).apply { permissionOverride = false }
+            if (!bridge.isPermissionGranted()) {
+                return ModInstallResult(false, uniqueId, finalModName, author, version, fileCount, "", "Shizuku permission not granted. Cannot deploy mod.")
+            }
+
+            val stardewModDirs = listOf(
+                "/storage/emulated/0/Android/data/com.chucklefish.stardewvalley/files/Mods",
+                "/storage/emulated/0/Android/data/com.zane.stardewvalley/files/Mods"
             )
+
+            var deployedFolder = ""
+            var deployedSuccessfully = false
+            for (modDir in stardewModDirs) {
+                // Ensure mod dir exists
+                bridge.execCommand("mkdir -p ${escapeShellArg(modDir)}")
+                
+                val targetPath = "$modDir/$safeFolderName"
+                // Remove existing if any
+                bridge.execCommand("rm -rf ${escapeShellArg(targetPath)}")
+                // Copy new files
+                val res = bridge.execCommand("cp -r ${escapeShellArg(sourceModFolder.absolutePath)} ${escapeShellArg(targetPath)}")
+                
+                // Verify copy
+                val checkRes = bridge.execCommand("[ -d ${escapeShellArg(targetPath)} ] && echo OK")
+                if (checkRes.contains("OK")) {
+                    deployedFolder = safeFolderName
+                    deployedSuccessfully = true
+                }
+            }
+            
+            // Cleanup staging
+            stagingDir.deleteRecursively()
+
+            if (deployedSuccessfully) {
+                ModInstallResult(
+                    isSuccess = true,
+                    uniqueId = uniqueId,
+                    modName = finalModName,
+                    author = author,
+                    version = version,
+                    extractedFilesCount = fileCount,
+                    deployedFolderName = deployedFolder,
+                    message = "Mod '$finalModName' ($version) installed successfully! ($fileCount files extracted)"
+                )
+            } else {
+                 ModInstallResult(
+                    isSuccess = false,
+                    uniqueId = uniqueId,
+                    modName = finalModName,
+                    author = author,
+                    version = version,
+                    extractedFilesCount = fileCount,
+                    deployedFolderName = "",
+                    message = "Failed to deploy mod via Shizuku. Storage access might be restricted."
+                )
+            }
         } catch (e: Exception) {
             ModInstallResult(
                 isSuccess = false,
@@ -154,9 +228,52 @@ class ModInstaller(private val context: Context) {
                 author = "-",
                 version = "-",
                 extractedFilesCount = 0,
+                deployedFolderName = "",
                 message = "Failed to install mod: ${e.localizedMessage ?: e.message}"
             )
         }
+    }
+
+    private fun escapeShellArg(arg: String): String {
+        return "'" + arg.replace("'", "'\\''") + "'"
+    }
+
+    fun toggleModState(folderName: String, isEnabled: Boolean): Boolean {
+        if (folderName.isBlank()) return false
+        val bridge = ShizukuSaveBridge(context).apply { permissionOverride = false }
+        if (!bridge.isPermissionGranted()) return false
+
+        val stardewModDirs = listOf(
+            "/storage/emulated/0/Android/data/com.chucklefish.stardewvalley/files/Mods",
+            "/storage/emulated/0/Android/data/com.zane.stardewvalley/files/Mods"
+        )
+        
+        var toggledAny = false
+        for (modDir in stardewModDirs) {
+            val enabledPath = "$modDir/$folderName"
+            val disabledPath = "$modDir/$folderName.disabled"
+            
+            if (isEnabled) {
+                val checkRes = bridge.execCommand("[ -d ${escapeShellArg(disabledPath)} ] && echo OK")
+                if (checkRes.contains("OK")) {
+                     bridge.execCommand("mv ${escapeShellArg(disabledPath)} ${escapeShellArg(enabledPath)}")
+                     toggledAny = true
+                } else {
+                     val checkEn = bridge.execCommand("[ -d ${escapeShellArg(enabledPath)} ] && echo OK")
+                     if (checkEn.contains("OK")) toggledAny = true // already enabled
+                }
+            } else {
+                val checkRes = bridge.execCommand("[ -d ${escapeShellArg(enabledPath)} ] && echo OK")
+                if (checkRes.contains("OK")) {
+                     bridge.execCommand("mv ${escapeShellArg(enabledPath)} ${escapeShellArg(disabledPath)}")
+                     toggledAny = true
+                } else {
+                     val checkDis = bridge.execCommand("[ -d ${escapeShellArg(disabledPath)} ] && echo OK")
+                     if (checkDis.contains("OK")) toggledAny = true // already disabled
+                }
+            }
+        }
+        return toggledAny
     }
 
     private data class ParsedManifest(val name: String, val author: String, val version: String, val uniqueId: String)

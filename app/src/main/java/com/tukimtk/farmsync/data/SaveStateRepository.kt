@@ -12,7 +12,8 @@ data class PersistedMod(
     val name: String,
     val author: String,
     val version: String,
-    val isEnabled: Boolean
+    val isEnabled: Boolean,
+    val folderName: String = ""
 )
 
 class SaveStateRepository(context: Context) {
@@ -59,9 +60,9 @@ class SaveStateRepository(context: Context) {
         val jsonStr = prefs.getString("installed_mods_json", null)
         if (jsonStr.isNullOrBlank()) {
             return listOf(
-                PersistedMod("sve", "FlashShifter.StardewValleyExpandedCP", "Stardew Valley Expanded", "FlashShifter", "v1.14.24", true),
-                PersistedMod("ui_info", "Annosz.UIInfoSuite2", "UI Info Suite 2", "Annosz", "v2.3.3", true),
-                PersistedMod("thai_ai", "FarmSync.ThaiAI", "ม็อดแปลบทสนทนาภาษาไทย (AI BYOK)", "FarmSync AI", "v1.0.0", true)
+                PersistedMod("sve", "FlashShifter.StardewValleyExpandedCP", "Stardew Valley Expanded", "FlashShifter", "v1.14.24", true, "StardewValleyExpanded"),
+                PersistedMod("ui_info", "Annosz.UIInfoSuite2", "UI Info Suite 2", "Annosz", "v2.3.3", true, "UIInfoSuite2"),
+                PersistedMod("thai_ai", "FarmSync.ThaiAI", "ม็อดแปลบทสนทนาภาษาไทย (AI BYOK)", "FarmSync AI", "v1.0.0", true, "FarmSyncThaiAI")
             )
         }
 
@@ -77,7 +78,8 @@ class SaveStateRepository(context: Context) {
                         name = obj.getString("name"),
                         author = obj.getString("author"),
                         version = obj.getString("version"),
-                        isEnabled = obj.optBoolean("isEnabled", true)
+                        isEnabled = obj.optBoolean("isEnabled", true),
+                        folderName = obj.optString("folderName", "")
                     )
                 )
             }
@@ -95,6 +97,7 @@ class SaveStateRepository(context: Context) {
                 put("author", mod.author)
                 put("version", mod.version)
                 put("isEnabled", mod.isEnabled)
+                put("folderName", mod.folderName)
             }
             arr.put(obj)
         }

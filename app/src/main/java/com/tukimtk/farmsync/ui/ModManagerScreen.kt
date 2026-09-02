@@ -150,7 +150,8 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
                         name = result.modName,
                         author = result.author,
                         version = result.version,
-                        isEnabled = true
+                        isEnabled = true,
+                        folderName = result.deployedFolderName
                     )
                 } else it
             }
@@ -167,7 +168,8 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
                 name = result.modName,
                 author = result.author,
                 version = result.version,
-                isEnabled = true
+                isEnabled = true,
+                folderName = result.deployedFolderName
             )
             updateAndPersistMods(installedMods + newMod)
             showInstallDialog = Strings.get(
@@ -223,7 +225,7 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
 
     // SAF Zip File Picker
     val zipPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         if (uri != null) {
             processZipInstall(uri)
@@ -237,7 +239,7 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Header & Install Button
+        // Header
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -248,15 +250,6 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold
             )
-            Button(
-                onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    zipPickerLauncher.launch("application/zip")
-                },
-                shape = RoundedCornerShape(10.dp)
-            ) {
-                Text(Strings.get("+ ติดตั้งไฟล์ .zip", "+ Install .zip"))
-            }
         }
 
         // Tab Selector (Installed vs Popular Store)
@@ -280,6 +273,22 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
         }
 
         if (selectedTab == 0) {
+            Button(
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    zipPickerLauncher.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream", "*/*"))
+                },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer)
+            ) {
+                Text(
+                    text = Strings.get("📂 เลือกไฟล์ .zip ของม็อดในเครื่องเพื่อติดตั้ง", "📂 Install Local Mod .zip"),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+            }
+
             Text(
                 text = Strings.get(
                     "เปิด/ปิดการทำงานของม็อดได้ทันที สามารถติดตั้งม็อดได้ไม่จำกัดจำนวน และข้อมูลจะบันทึกคงอยู่ถาวร",
@@ -312,6 +321,7 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
                         isEnabled = mod.isEnabled,
                         onToggle = { isChecked: Boolean ->
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            installer.toggleModState(mod.folderName, isChecked)
                             val updated = installedMods.map {
                                 if (it.id == mod.id) it.copy(isEnabled = isChecked) else it
                             }
