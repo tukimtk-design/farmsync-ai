@@ -58,6 +58,7 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.junit.jupiter:junit-jupiter:5.8.1")
     testImplementation("org.mockito:mockito-core:5.12.0")
+    testImplementation("org.json:json:20231013")
 }
 
 tasks.withType<Test> {
