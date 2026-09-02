@@ -51,6 +51,33 @@ class StardewSaveEditor {
             }
 
             result = beforePlayer + modifiedPlayer + afterPlayer
+
+            // 1.1 Process <farmerTeam> block specifically (Stardew Valley 1.5/1.6 Shared Wallet)
+            val teamStartTag = "<farmerTeam"
+            val teamEndTag = "</farmerTeam>"
+            val teamStartIndex = result.indexOf(teamStartTag, ignoreCase = true)
+            val teamEndIndex = result.indexOf(teamEndTag, ignoreCase = true)
+
+            if (teamStartIndex != -1 && teamEndIndex != -1 && teamEndIndex > teamStartIndex) {
+                // Handle both <farmerTeam> and <farmerTeam xsi:type="...">
+                val tagCloseIndex = result.indexOf(">", teamStartIndex)
+                if (tagCloseIndex != -1 && tagCloseIndex < teamEndIndex) {
+                    val beforeTeam = result.substring(0, tagCloseIndex + 1)
+                    val teamContent = result.substring(tagCloseIndex + 1, teamEndIndex)
+                    val afterTeam = result.substring(teamEndIndex)
+
+                    var modifiedTeam = teamContent
+                    modifiedTeam = replaceFirstTag(modifiedTeam, "money", edits.money.toString())
+
+                    val teamTotalMoneyRegex = Regex("<totalMoneyEarned>(\\d+)</totalMoneyEarned>", RegexOption.IGNORE_CASE)
+                    val teamCurrentTotal = teamTotalMoneyRegex.find(modifiedTeam)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+                    if (edits.money > teamCurrentTotal) {
+                        modifiedTeam = replaceFirstTag(modifiedTeam, "totalMoneyEarned", (edits.money + 50000).toString())
+                    }
+
+                    result = beforeTeam + modifiedTeam + afterTeam
+                }
+            }
         } else {
             // For SaveGameInfo (which has root <Farmer> instead of <player>)
             result = replaceFirstTag(result, "name", edits.characterName)
@@ -58,6 +85,12 @@ class StardewSaveEditor {
             result = replaceFirstTag(result, "money", edits.money.toString())
             result = replaceFirstTag(result, "maxHealth", edits.maxHealth.toString())
             result = replaceFirstTag(result, "maxStamina", edits.maxStamina.toString())
+
+            val totalMoneyRegex = Regex("<totalMoneyEarned>(\\d+)</totalMoneyEarned>", RegexOption.IGNORE_CASE)
+            val currentTotal = totalMoneyRegex.find(result)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+            if (edits.money > currentTotal) {
+                result = replaceFirstTag(result, "totalMoneyEarned", (edits.money + 50000).toString())
+            }
         }
 
         // 2. Modify root timeline tags (Case-insensitive season formatting)

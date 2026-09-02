@@ -74,4 +74,40 @@ class StardewSaveEditorTest {
         assertTrue("Animal DaisyTheCow must NOT be renamed", modified.contains("<name>DaisyTheCow</name>"))
         assertFalse("OriginalFarmer must no longer exist", modified.contains("<name>OriginalFarmer</name>"))
     }
+
+    @Test
+    fun `test that farmerTeam money and totalMoneyEarned are synchronized in Stardew 1_6 saves`() {
+        val saveXmlWithTeam = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <SaveGame xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+                <player>
+                    <name>FarmerTuki</name>
+                    <farmName>TukiFarm</farmName>
+                    <money>500</money>
+                    <totalMoneyEarned>500</totalMoneyEarned>
+                </player>
+                <farmerTeam>
+                    <money>500</money>
+                    <totalMoneyEarned>500</totalMoneyEarned>
+                    <useSeparateWallets>false</useSeparateWallets>
+                </farmerTeam>
+            </SaveGame>
+        """.trimIndent()
+
+        val edits = EditableSaveData(
+            characterName = "FarmerTuki",
+            farmName = "TukiFarm",
+            money = 999999
+        )
+
+        val modified = editor.applyEditsToXml(saveXmlWithTeam, edits)
+
+        // Both player and farmerTeam blocks must have money updated to 999999
+        val playerBlock = modified.substringAfter("<player>").substringBefore("</player>")
+        val teamBlock = modified.substringAfter("<farmerTeam>").substringBefore("</farmerTeam>")
+
+        assertTrue("Player block must have 999999", playerBlock.contains("<money>999999</money>"))
+        assertTrue("farmerTeam block must have 999999", teamBlock.contains("<money>999999</money>"))
+        assertTrue("farmerTeam totalMoneyEarned must be updated", teamBlock.contains("<totalMoneyEarned>1049999</totalMoneyEarned>"))
+    }
 }
