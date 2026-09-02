@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tukimtk.farmsync.data.SaveStateRepository
 import com.tukimtk.farmsync.i18n.Strings
+import com.tukimtk.farmsync.ui.components.*
 
 @Composable
 fun FarmDashboardScreen() {
@@ -37,67 +38,63 @@ fun FarmDashboardScreen() {
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Farm Overview Card (Live from SaveStateRepository)
-        Card(
+        // Farm Header Banner
+        FarmHeaderBanner(
+            farmName = saveData.farmName,
+            farmerName = saveData.characterName,
+            season = saveData.season
+        )
+
+        // Quick Stats Row
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            )
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = "🏡 ${saveData.farmName}",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-                Text(
-                    text = "${Strings.get("เจ้าของฟาร์ม", "Farmer")}: ${saveData.characterName} | ${Strings.get("เวอร์ชันเกม", "Version")}: 1.6.15",
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                )
-                HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 4.dp),
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column {
-                        Text(Strings.get("📅 เวลาในเกม (Timeline)", "📅 In-Game Date"), fontSize = 12.sp, color = Color.Gray)
-                        Text("${saveData.season} วันที่ ${saveData.dayOfMonth} ปี ${saveData.year}", fontWeight = FontWeight.SemiBold)
-                    }
-                    Column {
-                        Text(Strings.get("💰 จำนวนเงินทั้งหมด", "💰 Total Money"), fontSize = 12.sp, color = Color.Gray)
-                        Text("${saveData.money}g", fontWeight = FontWeight.SemiBold, color = Color(0xFF2E7D32))
-                    }
-                }
-            }
+            QuickStatusCard(
+                title = Strings.get("เงินทั้งหมด", "Total Money"),
+                value = "${saveData.money}g",
+                icon = "💰",
+                modifier = Modifier.weight(1f)
+            )
+            QuickStatusCard(
+                title = Strings.get("เวลาในเกม", "In-Game Date"),
+                value = "Day ${saveData.dayOfMonth}",
+                subtitle = "Year ${saveData.year}",
+                icon = "📅",
+                modifier = Modifier.weight(1f)
+            )
         }
 
         // Sync Status Card
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text(Strings.get("🔄 ระบบตัดสินใจซิงค์ (Save Decision Engine)", "🔄 Save Decision Engine"), fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Text(
-                    text = Strings.get(
-                        "ช่องทางซิงค์: $storageName\nสถานะ: ตรวจสอบ In-Game Timeline ปลอดภัย 100% ไร้ความเสี่ยงเซฟทับ",
-                        "Sync Provider: $storageName\nStatus: In-Game Timeline verified. Safe from accidental overwrite."
-                    ),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.DarkGray
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(Strings.get("🔄 ระบบตัดสินใจซิงค์", "🔄 Sync Engine"), fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = Strings.get(
+                                "เชื่อมต่อกับ: $storageName\nสถานะ: ปลอดภัย ไร้ความเสี่ยงเซฟทับ",
+                                "Connected: $storageName\nStatus: Verified. Safe from overwrite."
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                        )
+                    }
+                }
 
                 Button(
                     onClick = {
@@ -106,29 +103,46 @@ fun FarmDashboardScreen() {
                         showSyncSuccessDialog = true
                         isSyncing = false
                     },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
                 ) {
                     Text(
-                        if (isSyncing) Strings.get("กำลังซิงค์...", "Syncing...")
-                        else Strings.get("⚡ ซิงค์อัตโนมัติใน 1 คลิก", "⚡ 1-Click Auto-Sync")
+                        text = if (isSyncing) Strings.get("กำลังซิงค์...", "Syncing...") else Strings.get("⚡ ซิงค์อัตโนมัติใน 1 คลิก", "⚡ 1-Click Auto-Sync"),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
         }
 
-        // Quick Stats / Devices Connected
+        // Devices Connected
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(Strings.get("📡 อุปกรณ์ในระบบ Ecosystem", "📡 Connected Ecosystem"), fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Text("• Xiaomi 14T Pro (${Strings.get("เครื่องนี้", "Local Device")}) - ${Strings.get("ข้อมูลล่าสุด", "Up to date")}", fontSize = 14.sp)
-                Text("• Windows PC / Steam Deck ($storageName) - ${Strings.get("ออนไลน์พร้อมเชื่อมต่อ", "Online (Ready)")}", fontSize = 14.sp)
+                Text(Strings.get("📡 อุปกรณ์ในระบบ", "📡 Ecosystem Devices"), fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                
+                DeviceRow(
+                    name = "Xiaomi 14T Pro (${Strings.get("เครื่องนี้", "Local")})",
+                    status = Strings.get("ข้อมูลล่าสุด", "Up to date")
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                DeviceRow(
+                    name = "Windows PC / Steam Deck ($storageName)",
+                    status = Strings.get("ออนไลน์", "Online")
+                )
             }
         }
 
@@ -142,5 +156,21 @@ fun FarmDashboardScreen() {
                 onDismiss = { showSyncSuccessDialog = false }
             )
         }
+    }
+}
+
+@Composable
+fun DeviceRow(name: String, status: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(text = "• $name", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            text = status,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.primary
+        )
     }
 }
