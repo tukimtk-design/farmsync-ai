@@ -9,7 +9,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -21,6 +23,7 @@ import com.tukimtk.farmsync.shizuku.ShizukuStateManager
 @Composable
 fun ShizukuToolsScreen() {
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
     val shizukuState by ShizukuStateManager.state.collectAsState()
     val isShizukuReady = shizukuState is ShizukuState.Ready
     val bridge = remember { ShizukuSaveBridge(context) }
@@ -41,24 +44,26 @@ fun ShizukuToolsScreen() {
 
 
         // Status Card
-        Card(
+        ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.elevatedCardColors(
                 containerColor = if (isShizukuReady) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
-            )
+            ),
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(text = if (isShizukuReady) "🟢" else "⚪", fontSize = 18.sp)
+            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(text = if (isShizukuReady) "🟢" else "⚪", fontSize = 24.sp)
                     Text(
                         text = if (isShizukuReady) {
                             Strings.get("สถานะ: พร้อมใช้งาน", "Status: Ready")
                         } else {
                             Strings.get("สถานะ: ปิดใช้งาน", "Status: Disabled")
                         },
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 18.sp,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
                 Text(
@@ -67,8 +72,8 @@ fun ShizukuToolsScreen() {
                     } else {
                         Strings.get("ฟังก์ชันเหล่านี้ไม่สามารถใช้งานได้เนื่องจาก Shizuku ยังไม่พร้อม (ขาดสิทธิ์หรือไม่ได้เปิดทำงาน)", "These features are disabled because Shizuku is not ready (missing permission or not running).")
                     },
-                    fontSize = 13.sp,
-                    color = if (isShizukuReady) MaterialTheme.colorScheme.onPrimaryContainer else Color.Gray
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -97,15 +102,15 @@ fun ShizukuToolsScreen() {
         )
 
         // Tool 1: 1-Click Sync
-        Card(
+        OutlinedCard(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = if (isShizukuReady) MaterialTheme.colorScheme.surface else Color(0xFFF0F0F0)
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.outlinedCardColors(
+                containerColor = if (isShizukuReady) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
             )
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                modifier = Modifier.fillMaxWidth().padding(20.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -113,12 +118,14 @@ fun ShizukuToolsScreen() {
                     Text(
                         text = "🚀 ${Strings.get("1-Click Data Sync", "1-Click Data Sync")}",
                         fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
                         color = if (isShizukuReady) MaterialTheme.colorScheme.onSurface else Color.Gray
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = Strings.get("ซิงค์เซฟและม็อดเข้าโฟลเดอร์เกมโดยตรง", "Directly sync saves and mods into game folder."),
-                        fontSize = 12.sp,
-                        color = Color.Gray
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Button(
@@ -148,15 +155,15 @@ fun ShizukuToolsScreen() {
         }
 
         // Tool 2: Direct Mod Installer
-        Card(
+        OutlinedCard(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = if (isShizukuReady) MaterialTheme.colorScheme.surface else Color(0xFFF0F0F0)
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.outlinedCardColors(
+                containerColor = if (isShizukuReady) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
             )
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                modifier = Modifier.fillMaxWidth().padding(20.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -164,12 +171,14 @@ fun ShizukuToolsScreen() {
                     Text(
                         text = "📥 ${Strings.get("ติดตั้งม็อดเข้าโฟลเดอร์เกม", "Install .zip to Game Folder")}",
                         fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
                         color = if (isShizukuReady) MaterialTheme.colorScheme.onSurface else Color.Gray
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = Strings.get("แตกไฟล์ .zip ลงใน /Android/data/.../Mods/", "Extract .zip directly into /Android/data/.../Mods/"),
-                        fontSize = 12.sp,
-                        color = Color.Gray
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Button(
@@ -191,14 +200,46 @@ fun ShizukuToolsScreen() {
 
         // Diagnostic / Output Result
         scanResult?.let { result ->
-            Card(
+            var expanded by remember(result) { mutableStateOf(true) }
+            ElevatedCard(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(8.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.elevatedCardColors(containerColor = Color(0xFF1E1E1E)),
+                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 6.dp)
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Text("Result Console:", color = Color.LightGray, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    Text(result, color = Color(0xFF4CAF50), fontSize = 11.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("💻", fontSize = 16.sp)
+                            Text("Result Console", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            IconButton(onClick = {
+                                clipboardManager.setText(AnnotatedString(result))
+                            }, modifier = Modifier.size(36.dp)) {
+                                Text("📋", fontSize = 16.sp)
+                            }
+                            IconButton(onClick = { expanded = !expanded }, modifier = Modifier.size(36.dp)) {
+                                Text(if (expanded) "🔼" else "🔽", fontSize = 16.sp)
+                            }
+                        }
+                    }
+                    if (expanded) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        HorizontalDivider(color = Color.DarkGray)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            result,
+                            color = Color(0xFF4CAF50),
+                            fontSize = 12.sp,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            lineHeight = 16.sp
+                        )
+                    }
                 }
             }
         }

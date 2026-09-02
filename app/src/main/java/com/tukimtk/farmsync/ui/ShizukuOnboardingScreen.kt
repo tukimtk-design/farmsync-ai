@@ -69,14 +69,15 @@ fun ShizukuOnboardingScreen() {
         }
 
         // Live Status Badge
-        Card(
+        ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.elevatedCardColors(
                 containerColor = if (shizukuState is ShizukuState.Ready) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer
-            )
+            ),
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 val iconAndTitle = when (shizukuState) {
                     is ShizukuState.NotInstalled -> "🔴" to Strings.get("ไม่พบ Shizuku (Not Installed)", "Shizuku Not Installed")
                     is ShizukuState.NotRunning -> "🔴" to Strings.get("Shizuku ยังไม่ทำงาน (Not Running)", "Shizuku Not Running")
@@ -86,9 +87,9 @@ fun ShizukuOnboardingScreen() {
                     is ShizukuState.Ready -> "🟢" to Strings.get("Shizuku พร้อมใช้งาน (Ready)", "Shizuku Ready")
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(text = iconAndTitle.first, fontSize = 18.sp)
-                    Text(text = iconAndTitle.second, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(text = iconAndTitle.first, fontSize = 24.sp)
+                    Text(text = iconAndTitle.second, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurface)
                 }
 
                 val desc = when (shizukuState) {
@@ -99,7 +100,7 @@ fun ShizukuOnboardingScreen() {
                     is ShizukuState.RequiresManualAuthorization -> Strings.get("กรุณาอนุญาตสิทธิ์ในแอป Shizuku ด้วยตนเอง", "Please authorize in the Shizuku app manually.")
                     is ShizukuState.Ready -> Strings.get("ได้รับสิทธิ์แล้ว แต่ยังไม่ได้ตรวจสอบการเข้าถึงโฟลเดอร์เซฟ จำเป็นต้องมีการตรวจสอบสแกนก่อนแก้ไขไฟล์", "Shizuku permission granted. Save-folder access has not yet been verified. Storage diagnostics are required before file operations.")
                 }
-                Text(text = desc, fontSize = 13.sp, color = Color.DarkGray)
+                Text(text = desc, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
 
@@ -130,7 +131,10 @@ fun ShizukuOnboardingScreen() {
                 }
                 is ShizukuState.PermissionRequired -> {
                     Button(
-                        onClick = { ShizukuStateManager.requestPermission(1001) },
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            ShizukuStateManager.requestPermission(1001)
+                        },
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("🔑 ${Strings.get("ขอยืนยันสิทธิ์ Shizuku", "Request Permission")}")
@@ -139,6 +143,7 @@ fun ShizukuOnboardingScreen() {
                 is ShizukuState.Ready -> {
                     Button(
                         onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             // Scan all candidate paths - official pkg + aliases used on Xiaomi/HyperOS
                             val paths = listOf(
                                 "/storage/emulated/0/Android/data/com.chucklefish.stardewvalley/files/Saves",
@@ -165,14 +170,25 @@ fun ShizukuOnboardingScreen() {
 
         // Diagnostic Console Output
         diagnosticOutput?.let { output ->
-            Card(
+            ElevatedCard(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(8.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.elevatedCardColors(containerColor = Color(0xFF1E1E1E)),
+                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 6.dp)
             ) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("💻 Diagnostic Console Output:", color = Color.LightGray, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    Text(output.ifBlank { "(Directory exists but currently empty)" }, color = Color(0xFF4CAF50), fontSize = 11.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("💻", fontSize = 16.sp)
+                        Text("Diagnostic Console Output", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
+                    HorizontalDivider(color = Color.DarkGray)
+                    Text(
+                        output.ifBlank { "(Directory exists but currently empty)" },
+                        color = Color(0xFF4CAF50),
+                        fontSize = 12.sp,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        lineHeight = 16.sp
+                    )
                 }
             }
         }
@@ -213,28 +229,31 @@ fun ShizukuOnboardingScreen() {
 
 @Composable
 fun StepCard(stepNumber: String, title: String, desc: String) {
-    Card(
+    ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(20.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
                 shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(36.dp)
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.size(40.dp)
             ) {
-                Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
-                    Text(stepNumber, color = Color.White, fontWeight = FontWeight.Bold)
+                Box(contentAlignment = Alignment.Center) {
+                    Text(stepNumber, color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 }
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Text(desc, fontSize = 13.sp, color = Color.Gray)
+                Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                Text(desc, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

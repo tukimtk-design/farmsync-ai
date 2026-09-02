@@ -41,13 +41,22 @@ fun SaveRescueDialog(
         title = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("🛟", fontSize = 24.sp)
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("🛟", fontSize = 20.sp)
+                    }
+                }
                 Text(
                     Strings.get("กล่องกู้คืนเซฟฉุกเฉิน (Save Rescue Kit)", "Emergency Save Rescue Kit"),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 18.sp,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
         },
@@ -56,18 +65,18 @@ fun SaveRescueDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
                     text = Strings.get(
                         "ระบบจะสำรองไฟล์เซฟต้นฉบับเป็น Zip Snapshot ให้อัตโนมัติทุกครั้งก่อนแก้ไขหรือลงม็อด หากเซฟในเกมหายหรือมีปัญหาม็อดไม่ตรง สามารถเลือกจุดย้อนเวลากลับได้ 100% ทันที",
                         "Automated untouched Zip snapshots are saved before any edit or mod change. If a save disappears or encounters a mod conflict, you can restore any snapshot with 1-click."
                     ),
-                    fontSize = 13.sp,
-                    color = Color.DarkGray
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                HorizontalDivider()
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                 Text(
                     text = "${Strings.get("ประวัติจุดสำรองข้อมูลทั้งหมด", "Available Snapshots")}: (${snapshots.size})",
@@ -76,54 +85,59 @@ fun SaveRescueDialog(
                 )
 
                 if (snapshots.isEmpty()) {
-                    Card(
+                    OutlinedCard(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                        colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                     ) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(
                                 Strings.get("ยังไม่มีประวัติ Snapshot ในระบบ", "No historical snapshots found."),
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 Strings.get("ไฟล์สำรองจะถูกสร้างขึ้นอัตโนมัติเมื่อกดบันทึกเซฟ หรือกดปุ่มด้านล่างเพื่อสำรองข้อมูลทันที", "Snapshots are created automatically when saving edits or tapping below."),
-                                fontSize = 12.sp,
-                                color = Color.Gray
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
                 } else {
                     snapshots.forEach { snap ->
-                        Card(
+                        ElevatedCard(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
                         ) {
                             Column(
-                                modifier = Modifier.padding(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("🏡 ฟาร์ม ${snap.farmName}", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                    Text("🏡 ${snap.farmName}", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
                                     AssistChip(
                                         onClick = {},
-                                        label = { Text("${snap.sizeBytes / 1024} KB", fontSize = 10.sp) }
+                                        label = { Text("${snap.sizeBytes / 1024} KB", fontSize = 12.sp, fontWeight = FontWeight.Medium) },
+                                        colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                                     )
                                 }
-                                Text("📅 ${snap.formattedDate}", fontSize = 12.sp, color = Color.DarkGray)
+                                Text("📅 ${snap.formattedDate}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Spacer(modifier = Modifier.height(4.dp))
                                 Button(
                                     onClick = {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         selectedSnapshotToRestore = snap
                                     },
                                     modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(8.dp)
+                                    shape = RoundedCornerShape(12.dp)
                                 ) {
-                                    Text("🛟 ${Strings.get("กู้คืนเซฟนี้กลับเข้าเกม", "Restore this Save")}")
+                                    Text("🛟 ${Strings.get("กู้คืนเซฟนี้", "Restore Save")}")
                                 }
                             }
                         }
