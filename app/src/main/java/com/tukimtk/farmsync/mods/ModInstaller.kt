@@ -19,6 +19,19 @@ data class ModInstallResult(
     val message: String
 )
 
+fun compareVersions(v1: String, v2: String): Int {
+    val regex = Regex("\\d+")
+    val v1Parts = regex.findAll(v1).map { it.value.toInt() }.toList()
+    val v2Parts = regex.findAll(v2).map { it.value.toInt() }.toList()
+    val maxLen = maxOf(v1Parts.size, v2Parts.size)
+    for (i in 0 until maxLen) {
+        val p1 = v1Parts.getOrElse(i) { 0 }
+        val p2 = v2Parts.getOrElse(i) { 0 }
+        if (p1 != p2) return p1.compareTo(p2)
+    }
+    return 0
+}
+
 class ModInstaller(private val context: Context) {
 
     fun installModFromUri(uri: Uri): ModInstallResult {
