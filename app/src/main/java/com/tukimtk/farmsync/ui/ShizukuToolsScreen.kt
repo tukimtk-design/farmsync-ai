@@ -123,8 +123,17 @@ fun ShizukuToolsScreen() {
                 }
                 Button(
                     onClick = {
-                        val output = bridge.execCommand("ls -la /storage/emulated/0/Android/data/com.zane.stardewvalley/files/saves/")
-                        scanResult = "Direct Sync Complete:\n$output"
+                        // Scan saves across all candidate paths (official pkg + Xiaomi aliases)
+                        val paths = listOf(
+                            "/storage/emulated/0/Android/data/com.chucklefish.stardewvalley/files/Saves",
+                            "/sdcard/Android/data/com.chucklefish.stardewvalley/files/Saves",
+                            "/storage/sdcard0/Android/data/com.chucklefish.stardewvalley/files/Saves"
+                        )
+                        val results = paths.joinToString("\n\n") { p ->
+                            val out = bridge.execCommand("ls -la \"$p\" 2>&1")
+                            "[$p]\n${out.ifBlank { "(Not found or empty)" }}"
+                        }
+                        scanResult = "Save Scan Results:\n$results"
                     },
                     enabled = isShizukuReady,
                     shape = RoundedCornerShape(8.dp),
@@ -165,7 +174,7 @@ fun ShizukuToolsScreen() {
                 }
                 Button(
                     onClick = {
-                        val output = bridge.execCommand("ls -1 /storage/emulated/0/Android/data/com.zane.stardewvalley/files/Mods/")
+                        val output = bridge.execCommand("ls -1 \"/storage/emulated/0/Android/data/com.chucklefish.stardewvalley/files/Mods/\" 2>&1")
                         scanResult = "Installed Mods in /Android/data/:\n$output"
                     },
                     enabled = isShizukuReady,

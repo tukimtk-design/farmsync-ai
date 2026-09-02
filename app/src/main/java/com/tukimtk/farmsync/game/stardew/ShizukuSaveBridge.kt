@@ -199,7 +199,16 @@ class ShizukuSaveBridge(private val context: Context) {
             "/storage/emulated/0/Android/data/com.chucklefish.stardewvalley/files/saves",
             "/storage/emulated/0/Android/data/com.zane.stardewvalley/files/Saves",
             "/storage/emulated/0/Android/data/com.zane.stardewvalley/files/saves",
-            "/storage/emulated/0/StardewValley"
+            "/storage/emulated/0/StardewValley",
+            // Path aliases used on Xiaomi/HyperOS and some other devices
+            "/sdcard/Android/data/com.chucklefish.stardewvalley/files/Saves",
+            "/sdcard/Android/data/com.chucklefish.stardewvalley/files/saves",
+            "/sdcard/Android/data/com.zane.stardewvalley/files/Saves",
+            "/sdcard/Android/data/com.zane.stardewvalley/files/saves",
+            "/storage/sdcard0/Android/data/com.chucklefish.stardewvalley/files/Saves",
+            "/storage/sdcard0/Android/data/com.chucklefish.stardewvalley/files/saves",
+            "/storage/sdcard0/Android/data/com.zane.stardewvalley/files/Saves",
+            "/storage/sdcard0/Android/data/com.zane.stardewvalley/files/saves"
         )
         return validRoots.any { path.startsWith(it) }
     }
@@ -215,7 +224,12 @@ class ShizukuSaveBridge(private val context: Context) {
             "/storage/emulated/0/Android/data/com.chucklefish.stardewvalley/files/saves",
             "/storage/emulated/0/Android/data/com.zane.stardewvalley/files/Saves",
             "/storage/emulated/0/Android/data/com.zane.stardewvalley/files/saves",
-            "/storage/emulated/0/StardewValley"
+            "/storage/emulated/0/StardewValley",
+            // Path aliases used on Xiaomi/HyperOS and some other devices
+            "/sdcard/Android/data/com.chucklefish.stardewvalley/files/Saves",
+            "/sdcard/Android/data/com.chucklefish.stardewvalley/files/saves",
+            "/storage/sdcard0/Android/data/com.chucklefish.stardewvalley/files/Saves",
+            "/storage/sdcard0/Android/data/com.chucklefish.stardewvalley/files/saves"
         )
 
         var foundSaves = mutableListOf<RealSaveSlot>()

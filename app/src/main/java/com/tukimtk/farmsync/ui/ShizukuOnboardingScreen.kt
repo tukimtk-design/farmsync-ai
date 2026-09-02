@@ -139,8 +139,18 @@ fun ShizukuOnboardingScreen() {
                 is ShizukuState.Ready -> {
                     Button(
                         onClick = {
-                            val filesOutput = bridge.execCommand("ls -la /storage/emulated/0/Android/data/com.zane.stardewvalley/files/saves/")
-                            diagnosticOutput = "=== Stardew Valley Saves Directory ===\n$filesOutput"
+                            // Scan all candidate paths - official pkg + aliases used on Xiaomi/HyperOS
+                            val paths = listOf(
+                                "/storage/emulated/0/Android/data/com.chucklefish.stardewvalley/files/Saves",
+                                "/sdcard/Android/data/com.chucklefish.stardewvalley/files/Saves",
+                                "/storage/sdcard0/Android/data/com.chucklefish.stardewvalley/files/Saves",
+                                "/storage/emulated/0/Android/data/com.zane.stardewvalley/files/Saves"
+                            )
+                            val results = paths.joinToString("\n\n") { p ->
+                                val out = bridge.execCommand("ls -la \"$p\" 2>&1")
+                                "=== $p ===\n${out.ifBlank { "(Not found or empty)" }}"
+                            }
+                            diagnosticOutput = results
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {

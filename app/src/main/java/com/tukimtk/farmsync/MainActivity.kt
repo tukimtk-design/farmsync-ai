@@ -49,6 +49,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Register Shizuku binder listeners early so permission state is ready
+        com.tukimtk.farmsync.shizuku.ShizukuStateManager.init(this)
+
         if (intent?.action == Intent.ACTION_VIEW) {
             incomingZipUriState.value = intent.data
         }
