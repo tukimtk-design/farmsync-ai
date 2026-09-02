@@ -173,6 +173,24 @@ fun SaveEditorScreen() {
                 if (scanResult is SaveScanResult.Scanning) {
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally).padding(16.dp))
                 } else if (scanResult is SaveScanResult.SavesFound) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF2E7D32).copy(alpha = 0.12f)),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "🟢 " + Strings.get(
+                                    "Shizuku เชื่อมต่อโฟลเดอร์เซฟให้อัตโนมัติแล้ว (พร้อมแก้ไขและบันทึกได้ทันที ไม่ต้องเลือกโฟลเดอร์ด้วยตนเอง)",
+                                    "Shizuku connected directly to save folder! Ready to edit and save without manual picker."
+                                ),
+                                fontSize = 12.sp,
+                                color = Color(0xFF1B5E20),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+
                     (scanResult as SaveScanResult.SavesFound).saves.forEach { slot ->
                         Card(
                             modifier = Modifier
@@ -230,8 +248,8 @@ fun SaveEditorScreen() {
                 } else if (scanResult is SaveScanResult.NoSavesFound) {
                     Text(
                         text = Strings.get(
-                            "ไม่พบเซฟ Stardew Valley ในตำแหน่งที่รองรับ (อาจเกิดจากระบบความปลอดภัยของ Android / Scoped Storage จำกัดการเข้าถึงโฟลเดอร์เกมอื่น) กรุณาใช้ปุ่มเลือกโฟลเดอร์ด้วยตนเอง หรือเข้าเกมเพื่อสร้างเซฟใหม่",
-                            "No Stardew Valley saves found in supported locations (Android/data is restricted by Scoped Storage). Use the manual folder picker or create a new save in-game first."
+                            "ไม่พบเซฟ Stardew Valley ในตำแหน่งที่รองรับ กรุณาเข้าเกมเพื่อสร้างเซฟใหม่และเข้านอน 1 คืนก่อน",
+                            "No Stardew Valley saves found in supported locations. Create a character and sleep 1 night in-game first."
                         ),
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.error
@@ -261,7 +279,7 @@ fun SaveEditorScreen() {
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text(Strings.get("📂 เลือกโฟลเดอร์เซฟ", "📂 Pick Save Folder"))
+                        Text(Strings.get("📂 โฟลเดอร์สำรอง (SAF)", "📂 Manual SAF Folder"))
                     }
 
                     Button(
@@ -468,25 +486,25 @@ fun SaveEditorScreen() {
 
                 if (writeResult == SaveWriteResult.SuccessVerified) {
                     resultDialogMessage = Strings.get(
-                        "บันทึกและตรวจสอบไฟล์เซฟจริงแล้ว",
-                        "บันทึกและตรวจสอบไฟล์เซฟจริงแล้ว"
+                        "บันทึกและตรวจสอบไฟล์เซฟจริงเรียบร้อยแล้ว!\n(${selectedRealSlot?.farmName ?: "Farm"} - ${selectedRealSlot?.folderName ?: ""})",
+                        "Save written and verified successfully!\n(${selectedRealSlot?.farmName ?: "Farm"} - ${selectedRealSlot?.folderName ?: ""})"
                     )
                 } else {
-                    val errReason = when (writeResult) {
-                        is SaveWriteResult.BackupFailed -> "BackupFailed"
-                        is SaveWriteResult.ShizukuNotReady -> "ShizukuNotReady"
-                        is SaveWriteResult.InvalidDestination -> "InvalidDestination"
-                        is SaveWriteResult.MainSaveStageFailed -> "MainSaveStageFailed"
-                        is SaveWriteResult.SaveGameInfoStageFailed -> "SaveGameInfoStageFailed"
-                        is SaveWriteResult.MainSaveReplaceFailed -> "MainSaveReplaceFailed"
-                        is SaveWriteResult.SaveGameInfoReplaceFailed -> "SaveGameInfoReplaceFailed"
-                        is SaveWriteResult.PermissionDenied -> "PermissionDenied"
-                        is SaveWriteResult.VerificationFailed -> "VerificationFailed"
-                        is SaveWriteResult.ReloadFailed -> "ReloadFailed"
-                        is SaveWriteResult.RollbackFailed -> "RollbackFailed"
-                        else -> "UnexpectedFailure"
+                    val errDetail = when (writeResult) {
+                        is SaveWriteResult.BackupFailed -> Strings.get("การสำรองเซฟก่อนเขียนล้มเหลว (BackupFailed)", "Backup failed")
+                        is SaveWriteResult.ShizukuNotReady -> Strings.get("Shizuku ยังไม่พร้อมทำงาน (ShizukuNotReady)", "Shizuku not ready")
+                        is SaveWriteResult.InvalidDestination -> Strings.get("ไม่พบไฟล์เซฟในโฟลเดอร์ หรือโฟลเดอร์ไม่ถูกต้อง (InvalidDestination)", "Invalid destination folder")
+                        is SaveWriteResult.MainSaveStageFailed -> Strings.get("คัดลอกไฟล์เซฟหลักชั่วคราวล้มเหลว (MainSaveStageFailed)", "Main save stage copy failed")
+                        is SaveWriteResult.SaveGameInfoStageFailed -> Strings.get("คัดลอกไฟล์ SaveGameInfo ชั่วคราวล้มเหลว (SaveGameInfoStageFailed)", "SaveGameInfo stage copy failed")
+                        is SaveWriteResult.MainSaveReplaceFailed -> Strings.get("เขียนทับไฟล์เซฟหลักล้มเหลว (MainSaveReplaceFailed)", "Main save live replacement failed")
+                        is SaveWriteResult.SaveGameInfoReplaceFailed -> Strings.get("เขียนทับไฟล์ SaveGameInfo ล้มเหลว (SaveGameInfoReplaceFailed)", "SaveGameInfo live replacement failed")
+                        is SaveWriteResult.PermissionDenied -> Strings.get("ถูกปฏิเสธสิทธิ์การเขียนไฟล์ (PermissionDenied)", "Permission denied")
+                        is SaveWriteResult.VerificationFailed -> Strings.get("ตรวจสอบความถูกต้องของไฟล์เซฟไม่ผ่าน (VerificationFailed)", "Checksum verification failed")
+                        is SaveWriteResult.ReloadFailed -> Strings.get("โหลดไฟล์เซฟกลับมาตรวจสอบไม่สำเร็จ (ReloadFailed)", "Reloading save failed")
+                        is SaveWriteResult.RollbackFailed -> Strings.get("การย้อนคืนค่าเดิมล้มเหลว (RollbackFailed)", "Rollback failed")
+                        else -> Strings.get("เกิดข้อผิดพลาดที่ไม่คาดคิด กรุณาเลือกเซฟเกมก่อนบันทึก (UnexpectedFailure)", "Unexpected failure")
                     }
-                    resultDialogMessage = "Error: $errReason"
+                    resultDialogMessage = "Error: $errDetail"
                 }
 
                 showSuccessDialog = true

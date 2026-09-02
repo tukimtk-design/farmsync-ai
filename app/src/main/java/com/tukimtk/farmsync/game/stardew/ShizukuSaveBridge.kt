@@ -131,8 +131,6 @@ class ShizukuSaveBridge(private val context: Context) {
                 Runtime.getRuntime().exec(arrayOf("sh", "-c", cmd))
             }
 
-            process.outputStream.close()
-
             var stdoutStr = ""
             var stderrStr = ""
             var isTimeout = false
@@ -151,38 +149,27 @@ class ShizukuSaveBridge(private val context: Context) {
             stdoutThread.start()
             stderrThread.start()
 
-            val finished = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                process.waitFor(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
-            } else {
-                var waited = 0L
-                val step = 100L
-                while (waited < timeoutMs) {
-                    try {
-                        process.exitValue()
-                        break
-                    } catch (e: IllegalThreadStateException) {
-                        Thread.sleep(step)
-                        waited += step
-                    }
-                }
+            // Run process.waitFor() in a dedicated worker thread with timeout via thread.join()
+            // Avoids calling Process.waitFor(long, TimeUnit) which throws RuntimeException on ShizukuRemoteProcess
+            var exitCode = -1
+            val waitThread = Thread {
                 try {
-                    process.exitValue()
-                    true
-                } catch (e: IllegalThreadStateException) {
-                    false
-                }
+                    exitCode = process.waitFor()
+                } catch (_: Exception) {}
             }
+            waitThread.start()
+            waitThread.join(timeoutMs)
 
-            if (!finished) {
+            if (waitThread.isAlive) {
                 isTimeout = true
-                process.destroy()
+                try { process.destroy() } catch (_: Exception) {}
             }
 
             stdoutThread.join(500)
             stderrThread.join(500)
 
-            val exitCode = if (isTimeout) -1 else process.exitValue()
-            CommandResult(exitCode, stdoutStr, stderrStr, isTimeout)
+            val finalExitCode = if (isTimeout) -1 else exitCode
+            CommandResult(finalExitCode, stdoutStr, stderrStr, isTimeout)
         } catch (e: Exception) {
             CommandResult(-1, "", "", false)
         }
@@ -329,17 +316,30 @@ class ShizukuSaveBridge(private val context: Context) {
             if (!isPermissionGranted()) return SaveWriteResult.ShizukuNotReady
             if (!validatePath(slotPath)) return SaveWriteResult.InvalidDestination
 
-            val folderName = slotPath.substringAfterLast("/")
-            val mainSavePath = "$slotPath/$folderName"
-            val infoSavePath = "$slotPath/SaveGameInfo"
+            val cleanSlotPath = slotPath.trimEnd('/')
+            val folderName = cleanSlotPath.substringAfterLast("/")
+            val mainSavePath = "$cleanSlotPath/$folderName"
+            val infoSavePath = "$cleanSlotPath/SaveGameInfo"
 
-            // Validate existence
-            if (execBoundedCommand("test -f \"$mainSavePath\"").exitCode != 0) return SaveWriteResult.InvalidDestination
-            if (execBoundedCommand("test -f \"$infoSavePath\"").exitCode != 0) return SaveWriteResult.InvalidDestination
+            // Validate existence using test -f with fallback to ls for maximum shell compatibility
+            val checkMain = execBoundedCommand("[ -f \"$mainSavePath\" ] && echo OK")
+            val checkInfo = execBoundedCommand("[ -f \"$infoSavePath\" ] && echo OK")
+            val mainExists = (checkMain.exitCode == 0 && checkMain.stdout.contains("OK")) || execCommand("ls \"$mainSavePath\" 2>&1").contains(folderName)
+            val infoExists = (checkInfo.exitCode == 0 && checkInfo.stdout.contains("OK")) || execCommand("ls \"$infoSavePath\" 2>&1").contains("SaveGameInfo")
 
-            // Backup
+            if (!mainExists || !infoExists) {
+                return SaveWriteResult.InvalidDestination
+            }
+
+            // Backup: on Android 14 Scoped Storage, stage files to app-accessible dir first so rescueManager can read & zip them
             if (rescueManager != null) {
-                val backup = rescueManager.createSnapshotBackup(java.io.File(slotPath), "PreEdit")
+                val tempBackupDir = java.io.File(context.getExternalFilesDir("temp_backup") ?: context.cacheDir, folderName).apply { mkdirs() }
+                execBoundedCommand("cp \"$mainSavePath\" \"${tempBackupDir.absolutePath}/$folderName\"")
+                execBoundedCommand("cp \"$infoSavePath\" \"${tempBackupDir.absolutePath}/SaveGameInfo\"")
+
+                val backup = rescueManager.createSnapshotBackup(tempBackupDir, "PreEdit")
+                try { tempBackupDir.deleteRecursively() } catch (_: Exception) {}
+
                 if (backup == null || backup.sizeBytes == 0L || !backup.zipFile.exists()) {
                     return SaveWriteResult.BackupFailed
                 }
@@ -357,14 +357,14 @@ class ShizukuSaveBridge(private val context: Context) {
             val intendedMainHash = getSha256Str(updatedMain)
             val intendedInfoHash = getSha256Str(updatedInfo)
 
-            // App-private files
-            val tempDir = java.io.File(context.cacheDir, "shizuku_temp").apply { mkdirs() }
+            // App staging files: use externalFilesDir so Shizuku shell (uid 2000) has permission to read and copy
+            val tempDir = java.io.File(context.getExternalFilesDir("shizuku_temp") ?: context.cacheDir, "shizuku_temp").apply { mkdirs() }
             val tempMain = java.io.File(tempDir, folderName).apply { writeText(updatedMain) }
             val tempInfo = java.io.File(tempDir, "SaveGameInfo").apply { writeText(updatedInfo) }
 
             // 3. Staged Copy
-            val stagedMainPath = "$slotPath/${folderName}_staged"
-            val stagedInfoPath = "$slotPath/SaveGameInfo_staged"
+            val stagedMainPath = "$cleanSlotPath/${folderName}_staged"
+            val stagedInfoPath = "$cleanSlotPath/SaveGameInfo_staged"
 
             val stageMainRes = execBoundedCommand("cp \"${tempMain.absolutePath}\" \"$stagedMainPath\"")
             if (stageMainRes.exitCode != 0) return SaveWriteResult.MainSaveStageFailed
@@ -390,7 +390,7 @@ class ShizukuSaveBridge(private val context: Context) {
                     val backups = rescueManager.listSnapshots()
                     val latest = backups.firstOrNull { it.farmName == folderName.substringBefore("_") }
                     if (latest != null) {
-                        val ok = rescueManager.restoreSnapshot(latest, java.io.File(slotPath).parentFile)
+                        val ok = rescueManager.restoreSnapshot(latest, java.io.File(cleanSlotPath).parentFile)
                         if (!ok) return SaveWriteResult.RollbackFailed
                     } else {
                         return SaveWriteResult.RollbackFailed
@@ -413,7 +413,7 @@ class ShizukuSaveBridge(private val context: Context) {
             if (reloadInfoRes.exitCode != 0) return SaveWriteResult.ReloadFailed
 
             try {
-                val parsed = parseInfoContent(folderName, slotPath, reloadInfoRes.stdout)
+                val parsed = parseInfoContent(folderName, cleanSlotPath, reloadInfoRes.stdout)
                 // 11. Verify fields
                 if (parsed.money != edits.money) return SaveWriteResult.VerificationFailed
             } catch (e: Exception) {
@@ -421,8 +421,10 @@ class ShizukuSaveBridge(private val context: Context) {
             }
 
             // Cleanup temp
-            tempMain.delete()
-            tempInfo.delete()
+            try {
+                tempMain.delete()
+                tempInfo.delete()
+            } catch (_: Exception) {}
 
             return SaveWriteResult.SuccessVerified
         } catch (e: Exception) {
