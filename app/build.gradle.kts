@@ -48,6 +48,7 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.navigation:navigation-compose:2.7.7")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     // DocumentFile SAF
     implementation("androidx.documentfile:documentfile:1.0.1")
@@ -60,6 +61,7 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter:5.8.1")
     testImplementation("org.mockito:mockito-core:5.12.0")
     testImplementation("org.json:json:20231013")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 }
 
 tasks.withType<Test> {

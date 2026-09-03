@@ -8,6 +8,8 @@ interface StorageProvider {
     fun listFiles(path: String): List<String>
     fun uploadFile(localPath: String, remotePath: String): Boolean
     fun downloadFile(remotePath: String, localPath: String): Boolean
+    fun deleteFile(path: String): Boolean
+    fun testConnection(): Boolean
 }
 
 data class SmbConfig(

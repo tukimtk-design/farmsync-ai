@@ -9,4 +9,8 @@ class GoogleDriveProvider : StorageProvider {
     override fun listFiles(path: String): List<String> = listOf("save1.xml", "save2.xml")
     override fun uploadFile(localPath: String, remotePath: String): Boolean = true
     override fun downloadFile(remotePath: String, localPath: String): Boolean = true
+    
+    override fun deleteFile(path: String): Boolean = true
+    
+    override fun testConnection(): Boolean = connect()
 }

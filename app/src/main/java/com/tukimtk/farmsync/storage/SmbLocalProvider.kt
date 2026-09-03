@@ -78,4 +78,12 @@ class SmbLocalProvider(
             }
         }
     }
+
+    override fun deleteFile(path: String): Boolean {
+        return false // Stub implementation
+    }
+
+    override fun testConnection(): Boolean {
+        return testConnection(config)
+    }
 }
