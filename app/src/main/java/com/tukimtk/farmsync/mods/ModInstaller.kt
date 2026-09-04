@@ -64,7 +64,12 @@ class ModInstaller(
                 .replace("_", " ")
                 .trim()
 
-            val stagingDir = File(context.cacheDir, "mod_staging_${System.currentTimeMillis()}").apply { mkdirs() }
+            val stagingParent = context.getExternalFilesDir("mod_staging") ?: context.cacheDir
+            val stagingDir = File(stagingParent, "mod_staging_${System.currentTimeMillis()}").apply { 
+                mkdirs()
+                setReadable(true, false)
+                setExecutable(true, false)
+            }
 
             val zipIn = ZipInputStream(inputStream)
             var entry = zipIn.nextEntry
@@ -168,16 +173,23 @@ class ModInstaller(
 
             // Deploy via Shizuku
             if (!bridge.isPermissionGranted()) {
+                stagingDir.deleteRecursively()
                 return ModInstallResult(false, uniqueId, finalModName, author, version, fileCount, "", "Shizuku permission not granted. Cannot deploy mod.")
             }
 
+            // Ensure staging files are readable by Shizuku shell
+            bridge.execCommand("chmod -R 777 ${escapeShellArg(stagingDir.absolutePath)}")
+
             val stardewModDirs = listOf(
                 "/storage/emulated/0/Android/data/com.chucklefish.stardewvalley/files/Mods",
-                "/storage/emulated/0/Android/data/com.zane.stardewvalley/files/Mods"
+                "/storage/emulated/0/Android/data/com.zane.stardewvalley/files/Mods",
+                "/storage/emulated/0/StardewValley/Mods"
             )
 
             var deployedFolder = ""
             var deployedSuccessfully = false
+            var lastDeployError = ""
+
             for (modDir in stardewModDirs) {
                 // Ensure mod dir exists
                 bridge.execCommand("mkdir -p ${escapeShellArg(modDir)}")
@@ -186,7 +198,13 @@ class ModInstaller(
                 // Remove existing if any
                 bridge.execCommand("rm -rf ${escapeShellArg(targetPath)}")
                 // Copy new files
-                bridge.execCommand("cp -r ${escapeShellArg(sourceModFolder.absolutePath)} ${escapeShellArg(targetPath)}")
+                val cpRes = bridge.execCommand("cp -r ${escapeShellArg(sourceModFolder.absolutePath)} ${escapeShellArg(targetPath)} 2>&1")
+                if (cpRes.isNotBlank() && !cpRes.contains("OK")) {
+                    lastDeployError = cpRes.trim()
+                }
+
+                // Grant full permissions to deployed mod
+                bridge.execCommand("chmod -R 777 ${escapeShellArg(targetPath)}")
                 
                 // Verify copy
                 val checkRes = bridge.execCommand("[ -d ${escapeShellArg(targetPath)} ] && echo OK")
@@ -219,7 +237,7 @@ class ModInstaller(
                     version = version,
                     extractedFilesCount = fileCount,
                     deployedFolderName = "",
-                    message = "Failed to deploy mod via Shizuku. Storage access might be restricted."
+                    message = "Failed to deploy mod via Shizuku. ${if (lastDeployError.isNotBlank()) "($lastDeployError)" else "Storage access might be restricted."}"
                 )
             }
         } catch (e: Exception) {

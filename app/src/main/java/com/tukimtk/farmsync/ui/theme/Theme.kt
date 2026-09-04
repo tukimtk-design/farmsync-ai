@@ -28,19 +28,23 @@ private val LightColorScheme = lightColorScheme(
 private val DarkColorScheme = darkColorScheme(
     primary = WarmGlowHighlight,
     onPrimary = MidnightNavyBackground,
-    primaryContainer = PrimaryContainerDark,
-    onPrimaryContainer = OnPrimaryContainerDark,
+    primaryContainer = Color(0xFF1E3A2B),
+    onPrimaryContainer = Color(0xFFD1FAE5),
     secondary = AmberWheatPrimary,
     onSecondary = MidnightNavyBackground,
-    secondaryContainer = BarnwoodDark,
-    onSecondaryContainer = AmberWheatLight,
+    secondaryContainer = Color(0xFF2D3748),
+    onSecondaryContainer = Color(0xFFF1F5F9),
     tertiary = TerracottaPrimary,
     background = BackgroundDark,
     onBackground = OnSurfaceDark,
     surface = SurfaceDark,
-    onSurface = OnSurfaceDark,
-    surfaceVariant = Color(0xFF334155),
-    onSurfaceVariant = Color(0xFFCBD5E1)
+    onSurface = Color(0xFFF8FAFC),
+    surfaceVariant = Color(0xFF243044),
+    onSurfaceVariant = Color(0xFFCBD5E1),
+    error = Color(0xFFFF6B6B),
+    onError = Color.White,
+    errorContainer = Color(0xFF5A1E1E),
+    onErrorContainer = Color(0xFFFFD1D1)
 )
 
 @Composable

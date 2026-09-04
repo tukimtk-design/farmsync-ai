@@ -137,4 +137,40 @@ class StardewSaveEditorTest {
         assertTrue(modified.contains("<money>999999</money>"))
         assertTrue(modified.contains("<value><int>999999</int></value>"))
     }
+
+    @Test
+    fun `test that location currentSeason is preserved and only root currentSeason is updated`() {
+        val saveWithLocationSeason = """
+            <SaveGame>
+                <player>
+                    <name>FarmerTuki</name>
+                    <money>500</money>
+                </player>
+                <locations>
+                    <GameLocation xsi:type="Farm">
+                        <currentSeason>summer</currentSeason>
+                    </GameLocation>
+                </locations>
+                <currentSeason>spring</currentSeason>
+                <dayOfMonth>1</dayOfMonth>
+                <year>1</year>
+            </SaveGame>
+        """.trimIndent()
+
+        val edits = EditableSaveData(
+            money = 999999,
+            season = "Winter",
+            dayOfMonth = 10,
+            year = 2
+        )
+        val modified = editor.applyEditsToXml(saveWithLocationSeason, edits)
+
+        val locBlock = modified.substringAfter("<locations>").substringBefore("</locations>")
+        val rootBlock = modified.substringAfter("</locations>")
+
+        assertTrue("Location season must be preserved as summer", locBlock.contains("<currentSeason>summer</currentSeason>"))
+        assertTrue("Root season must be updated to winter", rootBlock.contains("<currentSeason>winter</currentSeason>"))
+        assertTrue("Root dayOfMonth must be updated to 10", rootBlock.contains("<dayOfMonth>10</dayOfMonth>"))
+        assertTrue("Root year must be updated to 2", rootBlock.contains("<year>2</year>"))
+    }
 }

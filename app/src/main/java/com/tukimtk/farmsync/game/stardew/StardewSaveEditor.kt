@@ -102,12 +102,26 @@ class StardewSaveEditor {
             }
         }
 
-        // 2. Modify root timeline tags (Case-insensitive season formatting)
-        result = replaceFirstTag(result, "currentSeason", edits.season.lowercase())
-        result = replaceFirstTag(result, "dayOfMonth", edits.dayOfMonth.toString())
-        result = replaceFirstTag(result, "year", edits.year.toString())
+        // 2. Modify root timeline tags safely (OUTSIDE <locations> block)
+        result = replaceRootTag(result, "currentSeason", edits.season.lowercase())
+        result = replaceRootTag(result, "dayOfMonth", edits.dayOfMonth.toString())
+        result = replaceRootTag(result, "year", edits.year.toString())
 
         return result
+    }
+
+    /**
+     * Replaces root tag safely without corrupting sub-blocks like <locations>
+     */
+    private fun replaceRootTag(xml: String, tag: String, newValue: String): String {
+        val locationsEndIdx = xml.indexOf("</locations>", ignoreCase = true)
+        if (locationsEndIdx != -1) {
+            val before = xml.substring(0, locationsEndIdx + "</locations>".length)
+            val after = xml.substring(locationsEndIdx + "</locations>".length)
+            val updatedAfter = replaceFirstTag(after, tag, newValue)
+            return before + updatedAfter
+        }
+        return replaceFirstTag(xml, tag, newValue)
     }
 
     /**

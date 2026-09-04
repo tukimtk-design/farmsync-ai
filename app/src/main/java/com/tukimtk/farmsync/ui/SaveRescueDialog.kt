@@ -31,6 +31,7 @@ fun SaveRescueDialog(
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val rescueManager = remember { SaveRescueManager(context) }
+    val bridge = remember { com.tukimtk.farmsync.game.stardew.ShizukuSaveBridge(context) }
 
     var snapshots by remember { mutableStateOf(rescueManager.listSnapshots()) }
     var restoreSuccessMessage by remember { mutableStateOf<String?>(null) }
@@ -172,8 +173,7 @@ fun SaveRescueDialog(
                 Button(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        val targetDir = File("/storage/emulated/0/Android/data/com.zane.stardewvalley/files/saves")
-                        val success = rescueManager.restoreSnapshot(snap, targetDir)
+                        val success = rescueManager.restoreSnapshotViaShizuku(snap, bridge)
                         selectedSnapshotToRestore = null
                         restoreSuccessMessage = if (success) {
                             Strings.get("✓ กู้คืนเซฟฟาร์ม '${snap.farmName}' สำเร็จเรียบร้อยแล้ว! เมื่อเข้าเกมจะพบเซฟกลับมา 100%", "✓ Save '${snap.farmName}' restored successfully! Reopen game to play.")

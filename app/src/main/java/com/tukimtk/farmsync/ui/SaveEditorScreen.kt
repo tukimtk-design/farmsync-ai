@@ -226,7 +226,7 @@ fun SaveEditorScreen() {
                                     Text(
                                         text = "${slot.season} วันที่ ${slot.day} ปี ${slot.year} | 💰 ${slot.money}g",
                                         fontSize = 12.sp,
-                                        color = Color.Gray
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                                 RadioButton(

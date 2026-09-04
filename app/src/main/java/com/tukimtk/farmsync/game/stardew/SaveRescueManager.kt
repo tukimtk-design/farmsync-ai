@@ -137,6 +137,60 @@ class SaveRescueManager(private val context: Context) {
     }
 
     /**
+     * Extracts snapshot to staging and copies into official game save directories via Shizuku shell with full permissions
+     */
+    fun restoreSnapshotViaShizuku(snapshot: BackupSnapshot, bridge: ShizukuSaveBridge): Boolean {
+        return try {
+            val tempRestoreBase = File(context.getExternalFilesDir("temp_restore") ?: context.cacheDir, "restore_${System.currentTimeMillis()}").apply { mkdirs() }
+            val farmFolderName = snapshot.fileName.substringAfter("Backup_").substringBeforeLast("_")
+            val destFolder = File(tempRestoreBase, farmFolderName).apply { mkdirs() }
+
+            val zis = ZipInputStream(FileInputStream(snapshot.zipFile))
+            var entry = zis.nextEntry
+            val buffer = ByteArray(8192)
+            while (entry != null) {
+                val outFile = File(destFolder, entry.name)
+                val fos = FileOutputStream(outFile)
+                var len: Int
+                while (zis.read(buffer).also { len = it } > 0) {
+                    fos.write(buffer, 0, len)
+                }
+                fos.close()
+                zis.closeEntry()
+                entry = zis.nextEntry
+            }
+            zis.close()
+
+            // Ensure staged files are readable by Shizuku
+            bridge.execCommand("chmod -R 777 \"${tempRestoreBase.absolutePath}\"")
+
+            val candidateRoots = listOf(
+                "/storage/emulated/0/Android/data/com.chucklefish.stardewvalley/files/Saves",
+                "/storage/emulated/0/Android/data/com.chucklefish.stardewvalley/files/saves",
+                "/storage/emulated/0/Android/data/com.zane.stardewvalley/files/Saves",
+                "/storage/emulated/0/Android/data/com.zane.stardewvalley/files/saves"
+            )
+
+            var restored = false
+            for (root in candidateRoots) {
+                val check = bridge.execCommand("[ -d \"$root\" ] && echo OK")
+                if (check.contains("OK")) {
+                    val targetSlot = "$root/$farmFolderName"
+                    bridge.execCommand("mkdir -p \"$targetSlot\"")
+                    bridge.execCommand("cp -r \"${destFolder.absolutePath}/\"* \"$targetSlot/\"")
+                    bridge.execCommand("chmod -R 777 \"$targetSlot\"")
+                    restored = true
+                }
+            }
+
+            try { tempRestoreBase.deleteRecursively() } catch (_: Exception) {}
+            restored
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
      * Inspects save XML to detect mod dependencies and verify game compatibility
      */
     fun inspectSaveHealth(saveXml: String, activeModNames: List<String>): SaveHealthReport {

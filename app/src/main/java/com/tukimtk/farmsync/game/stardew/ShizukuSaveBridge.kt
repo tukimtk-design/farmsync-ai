@@ -398,8 +398,7 @@ class ShizukuSaveBridge(private val context: Context) {
                     val backups = rescueManager.listSnapshots()
                     val latest = backups.firstOrNull { it.farmName == folderName.substringBefore("_") }
                     if (latest != null) {
-                        val parent = java.io.File(cleanSlotPath).parentFile ?: java.io.File(cleanSlotPath)
-                        val ok = rescueManager.restoreSnapshot(latest, parent)
+                        val ok = rescueManager.restoreSnapshotViaShizuku(latest, this)
                         if (!ok) return SaveWriteResult.RollbackFailed
                     } else {
                         return SaveWriteResult.RollbackFailed
@@ -415,6 +414,12 @@ class ShizukuSaveBridge(private val context: Context) {
             val oldInfoPath = "${infoSavePath}_old"
             execBoundedCommand("[ -f \"$oldMainPath\" ] && cp \"$mainSavePath\" \"$oldMainPath\"")
             execBoundedCommand("[ -f \"$oldInfoPath\" ] && cp \"$infoSavePath\" \"$oldInfoPath\"")
+
+            // Ensure game process (u0_aXXX) has full read/write access to saves
+            execBoundedCommand("chmod 666 \"$mainSavePath\" \"$infoSavePath\"")
+            execBoundedCommand("[ -f \"$oldMainPath\" ] && chmod 666 \"$oldMainPath\"")
+            execBoundedCommand("[ -f \"$oldInfoPath\" ] && chmod 666 \"$oldInfoPath\"")
+            execBoundedCommand("chmod 777 \"$cleanSlotPath\"")
 
             // 9. Verify Final
             val finalMainHash = getSha256(mainSavePath)

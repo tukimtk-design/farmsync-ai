@@ -181,7 +181,7 @@ fun ShizukuOnboardingScreen() {
                         Text("💻", fontSize = 16.sp)
                         Text("Diagnostic Console Output", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
-                    HorizontalDivider(color = Color.DarkGray)
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     Text(
                         output.ifBlank { "(Directory exists but currently empty)" },
                         color = Color(0xFF4CAF50),

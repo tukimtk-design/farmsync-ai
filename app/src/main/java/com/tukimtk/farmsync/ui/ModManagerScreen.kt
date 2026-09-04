@@ -294,7 +294,7 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             zipPickerLauncher.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream", "*/*"))
                         },
-                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 52.dp),
                         shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary,
@@ -323,7 +323,10 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f))
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                )
             ) {
                 Row(
                     modifier = Modifier.padding(12.dp),
@@ -352,7 +355,7 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
                     Box(modifier = Modifier.padding(24.dp), contentAlignment = Alignment.Center) {
                         Text(
                             Strings.get("ยังไม่มีม็อดในเครื่อง สามารถกดแท็บ 'คลังดาวน์โหลดม็อด' เพื่อเลือกม็อดได้เลย", "No mods installed yet. Switch to 'Mod Downloads' tab to get started."),
-                            color = Color.Gray,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 14.sp
                         )
                     }
@@ -386,7 +389,7 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
                     "Tap 'Download' to get the mod. Once installed, it will automatically move to the 'Installed Mods' tab."
                 ),
                 fontSize = 13.sp,
-                color = Color.Gray
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             if (availablePopularMods.isEmpty()) {
@@ -412,29 +415,50 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
                 availablePopularMods.forEach { mod ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     ) {
                         Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalAlignment = Alignment.Top
                             ) {
-                                Text(mod.name, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                AssistChip(
+                                Text(
+                                    text = mod.name,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f).padding(end = 8.dp)
+                                )
+                                SuggestionChip(
                                     onClick = {},
-                                    label = { Text(mod.category, fontSize = 11.sp) }
+                                    label = { Text(mod.category, fontSize = 11.sp) },
+                                    colors = SuggestionChipDefaults.suggestionChipColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        labelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
                                 )
                             }
-                            Text("By ${mod.author}", fontSize = 12.sp, color = Color.Gray)
+                            Text(
+                                text = "By ${mod.author}",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Medium
+                            )
                             Text(
                                 text = Strings.get(mod.descriptionTh, mod.descriptionEn),
                                 fontSize = 13.sp,
-                                color = Color.DarkGray
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                lineHeight = 18.sp
                             )
+                            Spacer(modifier = Modifier.height(2.dp))
                             Button(
                                 onClick = {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -442,9 +466,16 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
                                     context.startActivity(intent)
                                 },
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
+                                )
                             ) {
-                                Text("🌐 ${Strings.get("ดาวน์โหลดม็อด .zip (Download)", "Download .zip Mod")}")
+                                Text(
+                                    text = "🌐 ${Strings.get("ดาวน์โหลดม็อด .zip (Download)", "Download .zip Mod")}",
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             }
                         }
                     }
@@ -546,25 +577,29 @@ fun ModCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(name, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                Text("By $author | $version", fontSize = 13.sp, color = Color.Gray)
+            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                Text(name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
+                Text("By $author | $version", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 IconButton(onClick = onDelete) {
                     Icon(
                         Icons.Default.Delete,
                         contentDescription = "Delete Mod",
-                        tint = Color.Gray
+                        tint = MaterialTheme.colorScheme.error
                     )
                 }
                 Switch(
