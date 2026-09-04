@@ -369,11 +369,45 @@ class ShizukuSaveBridge(private val context: Context) {
                 return SaveWriteResult.UnexpectedFailure
             }
 
-            val originalMainXml = tempMain.readText(Charsets.UTF_8)
-            val originalInfoXml = tempInfo.readText(Charsets.UTF_8)
+            var originalMainXml = tempMain.readText(Charsets.UTF_8)
+            var originalInfoXml = tempInfo.readText(Charsets.UTF_8)
+
+            // Integrity check: if main save is truncated or corrupt (missing </SaveGame>), attempt auto-recovery from _SVBAK or _SVEMERG
+            if (!originalMainXml.contains("</SaveGame>", ignoreCase = true)) {
+                val bakPath = "${mainSavePath}_SVBAK"
+                val emergPath = "${mainSavePath}_SVEMERG"
+                execBoundedCommand("[ -f \"$bakPath\" ] && cp \"$bakPath\" \"${tempMain.absolutePath}\"")
+                val bakXml = if (tempMain.exists()) tempMain.readText(Charsets.UTF_8) else ""
+                if (bakXml.contains("</SaveGame>", ignoreCase = true)) {
+                    originalMainXml = bakXml
+                } else {
+                    execBoundedCommand("[ -f \"$emergPath\" ] && cp \"$emergPath\" \"${tempMain.absolutePath}\"")
+                    val emergXml = if (tempMain.exists()) tempMain.readText(Charsets.UTF_8) else ""
+                    if (emergXml.contains("</SaveGame>", ignoreCase = true)) {
+                        originalMainXml = emergXml
+                    }
+                }
+            }
 
             val updatedMain = editor.applyEditsToXml(originalMainXml.ifBlank { "<SaveGame></SaveGame>" }, edits)
-            val updatedInfo = editor.applyEditsToXml(originalInfoXml.ifBlank { updatedMain }, edits)
+            var updatedInfo = editor.applyEditsToXml(originalInfoXml.ifBlank { updatedMain }, edits)
+
+            // Must terminate with </SaveGame>
+            if (!updatedMain.contains("</SaveGame>", ignoreCase = true)) {
+                return SaveWriteResult.VerificationFailed
+            }
+
+            // Synchronize header tags between updatedMain and updatedInfo so game engine doesn't reject save
+            val saveTimeMatch = Regex("<saveTime>(\\d+)</saveTime>", RegexOption.IGNORE_CASE).find(updatedMain)
+            if (saveTimeMatch != null) {
+                val st = saveTimeMatch.groupValues[1]
+                updatedInfo = updatedInfo.replace(Regex("<saveTime>\\d+</saveTime>", RegexOption.IGNORE_CASE), "<saveTime>$st</saveTime>")
+            }
+            val dayMatch = Regex("<dayOfMonthForSaveGame>(\\d+)</dayOfMonthForSaveGame>", RegexOption.IGNORE_CASE).find(updatedMain)
+            if (dayMatch != null) {
+                val dm = dayMatch.groupValues[1]
+                updatedInfo = updatedInfo.replace(Regex("<dayOfMonthForSaveGame>\\d+</dayOfMonthForSaveGame>", RegexOption.IGNORE_CASE), "<dayOfMonthForSaveGame>$dm</dayOfMonthForSaveGame>")
+            }
 
             // 2. Write updated contents to temp files
             tempMain.writeText(updatedMain, Charsets.UTF_8)
@@ -432,29 +466,22 @@ class ShizukuSaveBridge(private val context: Context) {
             execBoundedCommand("[ -f \"$oldInfoPath\" ] && chmod 666 \"$oldInfoPath\"")
             execBoundedCommand("chmod 777 \"$cleanSlotPath\"")
 
-            // Mirror to legacy /storage/emulated/0/StardewValley directory so if game prompts for SAF picker, it is ready outside Scoped Storage
-            val legacyMirror = "/storage/emulated/0/StardewValley/$folderName"
-            execBoundedCommand("mkdir -p \"$legacyMirror\"")
-            execBoundedCommand("cp \"$mainSavePath\" \"$legacyMirror/$folderName\"")
-            execBoundedCommand("cp \"$infoSavePath\" \"$legacyMirror/SaveGameInfo\"")
-            execBoundedCommand("chmod -R 777 \"/storage/emulated/0/StardewValley\"")
-
-            // Cross-mirror between Vanilla (com.chucklefish.stardewvalley) and SMAPILoader (abc.smapi.gameloader) if slot exists in both
-            val alternativeRoot = if (cleanSlotPath.contains("com.chucklefish.stardewvalley")) {
-                "/storage/emulated/0/Android/data/abc.smapi.gameloader/files/Saves/$folderName"
-            } else if (cleanSlotPath.contains("abc.smapi.gameloader")) {
-                "/storage/emulated/0/Android/data/com.chucklefish.stardewvalley/files/Saves/$folderName"
-            } else null
-
-            if (alternativeRoot != null) {
-                val exists = execBoundedCommand("[ -d \"$alternativeRoot\" ] && echo OK")
-                if (exists.exitCode == 0 && exists.stdout.contains("OK")) {
-                    execBoundedCommand("cp \"$mainSavePath\" \"$alternativeRoot/$folderName\"")
-                    execBoundedCommand("cp \"$infoSavePath\" \"$alternativeRoot/SaveGameInfo\"")
-                    execBoundedCommand("chmod 666 \"$alternativeRoot/$folderName\" \"$alternativeRoot/SaveGameInfo\"")
-                    execBoundedCommand("chmod 777 \"$alternativeRoot\"")
+            // Universal Cross-Mirror: Ensure saves stay 100% in sync across Vanilla, SMAPILoader, and legacy storage
+            val allTargetRoots = listOf(
+                "/storage/emulated/0/Android/data/com.chucklefish.stardewvalley/files/Saves/$folderName",
+                "/storage/emulated/0/Android/data/abc.smapi.gameloader/files/Saves/$folderName",
+                "/storage/emulated/0/StardewValley/$folderName"
+            )
+            for (targetRoot in allTargetRoots) {
+                if (targetRoot != cleanSlotPath) {
+                    execBoundedCommand("mkdir -p \"$targetRoot\"")
+                    execBoundedCommand("cp \"$mainSavePath\" \"$targetRoot/$folderName\"")
+                    execBoundedCommand("cp \"$infoSavePath\" \"$targetRoot/SaveGameInfo\"")
+                    execBoundedCommand("chmod 666 \"$targetRoot/$folderName\" \"$targetRoot/SaveGameInfo\"")
+                    execBoundedCommand("chmod 777 \"$targetRoot\"")
                 }
             }
+            execBoundedCommand("chmod -R 777 \"/storage/emulated/0/StardewValley\"")
 
             // 9. Verify Final
             val finalMainHash = getSha256(mainSavePath)

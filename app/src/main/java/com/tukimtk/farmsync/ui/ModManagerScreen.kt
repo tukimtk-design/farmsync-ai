@@ -21,11 +21,17 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tukimtk.farmsync.ai.AiProviderType
+import com.tukimtk.farmsync.ai.AiTranslationEngine
+import com.tukimtk.farmsync.ai.TranslationPersona
+import com.tukimtk.farmsync.ai.TranslationScope
 import com.tukimtk.farmsync.data.PersistedMod
 import com.tukimtk.farmsync.data.SaveStateRepository
+import com.tukimtk.farmsync.game.stardew.ShizukuSaveBridge
 import com.tukimtk.farmsync.i18n.Strings
 import com.tukimtk.farmsync.mods.ModInstallResult
 import com.tukimtk.farmsync.mods.ModInstaller
+import kotlinx.coroutines.launch
 
 data class ModDownloadItem(
     val idKey: String,
@@ -50,6 +56,9 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
     val haptic = LocalHapticFeedback.current
     val repo = remember { SaveStateRepository(context) }
     val installer = remember { ModInstaller(context) }
+    val bridge = remember { ShizukuSaveBridge(context) }
+    val aiEngine = remember { AiTranslationEngine(context) }
+    val coroutineScope = rememberCoroutineScope()
 
     var selectedTab by remember { mutableIntStateOf(0) }
     var installedMods by remember { mutableStateOf(repo.loadInstalledMods()) }
@@ -58,6 +67,8 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
     var pendingUpdate by remember { mutableStateOf<PendingUpdateInfo?>(null) }
     var modToDelete by remember { mutableStateOf<PersistedMod?>(null) }
     var isInstalling by remember { mutableStateOf(false) }
+    var showAiStudioDialog by remember { mutableStateOf(false) }
+    var isQuickTranslating by remember { mutableStateOf(false) }
 
     val allPopularMods = remember {
         listOf(
@@ -316,6 +327,120 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+            }
+
+            // AI Thai Translation Studio Card
+            val isThaiModActive = installedMods.any { it.id == "thai_ai" || it.uniqueId == "com.tukimtk.farmsync.thaitranslation" }
+            val currentProvider = remember(showAiStudioDialog) { AiProviderType.fromId(repo.getAiProvider()) }
+            val currentPersona = remember(showAiStudioDialog) { TranslationPersona.fromId(repo.getTranslationPersona()) }
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("🌐", fontSize = 24.sp)
+                            Column {
+                                Text(
+                                    text = "AI Thai Translation Studio",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp
+                                )
+                                Text(
+                                    text = if (isThaiModActive) "🟢 " + Strings.get("ติดตั้งม็อดแปลไทยแล้ว", "Thai Mod Active")
+                                           else "⚪ " + Strings.get("ยังไม่ได้ติดตั้งม็อดแปลไทย", "Thai Mod Not Deployed"),
+                                    fontSize = 12.sp,
+                                    color = if (isThaiModActive) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f),
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+
+                        AssistChip(
+                            onClick = { showAiStudioDialog = true },
+                            label = { Text(currentProvider.displayName, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                        )
+                    }
+
+                    Text(
+                        text = Strings.get(
+                            "แปลเมนู บทสนทนา เควสต์ และไอเทมเป็นภาษาไทยด้วย AI (${currentProvider.displayName} / ${currentPersona.titleTh.substringBefore(" ")}) สร้างม็อด Content Patcher อัตโนมัติ",
+                            "Translate UI, dialogues, and quests to Thai via AI studio with Content Patcher deployment."
+                        ),
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.9f),
+                        lineHeight = 16.sp
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                showAiStudioDialog = true
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        ) {
+                            Text("⚙️ " + Strings.get("ตั้งค่า & สั่งแปล", "Studio Config"), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                isQuickTranslating = true
+                                coroutineScope.launch {
+                                    val scopes = repo.getTranslationScopes().mapNotNull { TranslationScope.fromId(it) }.toSet()
+                                    val persona = TranslationPersona.fromId(repo.getTranslationPersona())
+                                    val prov = AiProviderType.fromId(repo.getAiProvider())
+                                    val key = repo.getActiveApiKey()
+                                    val res = aiEngine.generateAndDeployMod(
+                                        scopes = scopes,
+                                        persona = persona,
+                                        provider = prov,
+                                        apiKey = key,
+                                        customEndpoint = repo.getCustomEndpoint(),
+                                        bridge = bridge
+                                    )
+                                    isQuickTranslating = false
+                                    installedMods = repo.loadInstalledMods()
+                                    showInstallDialog = res.message
+                                }
+                            },
+                            enabled = !isQuickTranslating,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            if (isQuickTranslating) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            } else {
+                                Text("⚡ " + Strings.get("แปลด่วน 1 คลิก", "Quick Deploy"), fontSize = 13.sp)
+                            }
+                        }
+                    }
                 }
             }
 
@@ -662,6 +787,16 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
                 title = Strings.get("ผลการติดตั้งม็อด", "Mod Installation Result"),
                 message = msg,
                 onDismiss = { showInstallDialog = null }
+            )
+        }
+
+        // AI Thai Translation Studio Dialog
+        if (showAiStudioDialog) {
+            ApiKeyConfigDialog(
+                onDismiss = {
+                    showAiStudioDialog = false
+                    installedMods = repo.loadInstalledMods()
+                }
             )
         }
     }

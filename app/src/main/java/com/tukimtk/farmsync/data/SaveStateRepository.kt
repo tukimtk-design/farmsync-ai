@@ -103,4 +103,71 @@ class SaveStateRepository(context: Context) {
         }
         prefs.edit().putString("installed_mods_json", arr.toString()).apply()
     }
+
+    // --- AI BYOK Multi-Provider & Translation Settings ---
+
+    fun getAiProvider(): String {
+        return prefs.getString("ai_provider", "DEEPSEEK") ?: "DEEPSEEK"
+    }
+
+    fun setAiProvider(provider: String) {
+        prefs.edit().putString("ai_provider", provider).apply()
+    }
+
+    fun getDeepSeekApiKey(): String {
+        return prefs.getString("deepseek_api_key", "") ?: ""
+    }
+
+    fun setDeepSeekApiKey(key: String) {
+        prefs.edit().putString("deepseek_api_key", key.trim()).apply()
+    }
+
+    fun getGeminiApiKey(): String {
+        return prefs.getString("gemini_api_key", "") ?: ""
+    }
+
+    fun setGeminiApiKey(key: String) {
+        prefs.edit().putString("gemini_api_key", key.trim()).apply()
+    }
+
+    fun getOpenAiApiKey(): String {
+        return prefs.getString("openai_api_key", "") ?: ""
+    }
+
+    fun setOpenAiApiKey(key: String) {
+        prefs.edit().putString("openai_api_key", key.trim()).apply()
+    }
+
+    fun getCustomEndpoint(): String {
+        return prefs.getString("custom_endpoint", "") ?: ""
+    }
+
+    fun setCustomEndpoint(endpoint: String) {
+        prefs.edit().putString("custom_endpoint", endpoint.trim()).apply()
+    }
+
+    fun getActiveApiKey(): String {
+        return when (getAiProvider()) {
+            "GEMINI" -> getGeminiApiKey()
+            "OPENAI" -> getOpenAiApiKey()
+            else -> getDeepSeekApiKey()
+        }
+    }
+
+    fun getTranslationPersona(): String {
+        return prefs.getString("translation_persona", "CASUAL") ?: "CASUAL"
+    }
+
+    fun setTranslationPersona(persona: String) {
+        prefs.edit().putString("translation_persona", persona).apply()
+    }
+
+    fun getTranslationScopes(): Set<String> {
+        return prefs.getStringSet("translation_scopes", setOf("MENUS", "DIALOGUES", "QUESTS", "ITEMS", "MODS"))
+            ?: setOf("MENUS", "DIALOGUES", "QUESTS", "ITEMS", "MODS")
+    }
+
+    fun setTranslationScopes(scopes: Set<String>) {
+        prefs.edit().putStringSet("translation_scopes", scopes).apply()
+    }
 }
