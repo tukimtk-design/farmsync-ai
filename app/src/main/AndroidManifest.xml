@@ -8,6 +8,9 @@
 
     <queries>
         <provider android:authorities="moe.shizuku.privileged.api" />
+        <package android:name="abc.smapi.gameloader" />
+        <package android:name="com.chucklefish.stardewvalley" />
+        <package android:name="com.zane.stardewvalley" />
     </queries>
 
     <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />

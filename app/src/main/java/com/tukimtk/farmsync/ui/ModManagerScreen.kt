@@ -319,30 +319,131 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
                 }
             }
 
-            // Info notice about SMAPI for Android
+            // SMAPILoader Launch & Download Card
+            val isSmapiInstalled = remember {
+                try {
+                    context.packageManager.getPackageInfo("abc.smapi.gameloader", 0)
+                    true
+                } catch (_: Exception) {
+                    false
+                }
+            }
+
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                 )
             ) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("ℹ️", fontSize = 20.sp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("🚀", fontSize = 22.sp)
+                            Column {
+                                Text(
+                                    text = "SMAPILoader for Android",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp
+                                )
+                                Text(
+                                    text = if (isSmapiInstalled) {
+                                        "🟢 " + Strings.get("ติดตั้งอยู่ในเครื่องแล้ว", "Installed on device")
+                                    } else {
+                                        "⚪ " + Strings.get("ยังไม่ได้ติดตั้ง", "Not installed")
+                                    },
+                                    fontSize = 12.sp,
+                                    color = if (isSmapiInstalled) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f),
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+
+                        if (isSmapiInstalled) {
+                            Button(
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    try {
+                                        val launchIntent = context.packageManager.getLaunchIntentForPackage("abc.smapi.gameloader")
+                                        if (launchIntent != null) {
+                                            context.startActivity(launchIntent)
+                                        } else {
+                                            val explicitIntent = Intent().apply {
+                                                setClassName("abc.smapi.gameloader", "crc64e91f1276c636690c.LauncherActivity")
+                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            }
+                                            context.startActivity(explicitIntent)
+                                        }
+                                    } catch (_: Exception) {
+                                        showInstallDialog = Strings.get("ไม่สามารถเปิด SMAPILoader ได้โดยตรง", "Cannot launch SMAPILoader.")
+                                    }
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
+                                )
+                            ) {
+                                Text("▶️ " + Strings.get("เปิดเกม SMAPI", "Launch Game"), fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
                     Text(
                         text = Strings.get(
-                            "การใช้งานม็อดบน Android: ต้องเปิดเกมผ่านแอป SMAPI Stardew Valley ม็อดภาษาไทยและม็อดอื่นๆ จึงจะแสดงผลในเกม",
-                            "Android Mod Notice: Mods only run when launching the game via SMAPI Stardew Valley."
+                            "ม็อดต่างๆ และม็อดภาษาไทยจะทำงานเมื่อเปิดเล่นผ่าน SMAPILoader เท่านั้น (หากยังไม่มี สามารถแตะดาวน์โหลดด้านล่าง)",
+                            "Mods run exclusively when launching via SMAPILoader for Android."
                         ),
                         fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.9f),
                         lineHeight = 16.sp
                     )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                val smapiDownloadIntent = Intent(
+                                    Intent.ACTION_VIEW,
+                                    Uri.parse("https://github.com/ZaneHsiao/SMAPI-Android-Installer/releases")
+                                )
+                                context.startActivity(smapiDownloadIntent)
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("📥 " + Strings.get("ดาวน์โหลด SMAPI (GitHub)", "Download (GitHub)"), fontSize = 12.sp)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                val smapiGuideIntent = Intent(
+                                    Intent.ACTION_VIEW,
+                                    Uri.parse("https://stardewvalleywiki.com/Modding:Installing_SMAPI_on_Android")
+                                )
+                                context.startActivity(smapiGuideIntent)
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("📖 " + Strings.get("วิธีติดตั้ง SMAPI", "SMAPI Guide"), fontSize = 12.sp)
+                        }
+                    }
                 }
             }
 

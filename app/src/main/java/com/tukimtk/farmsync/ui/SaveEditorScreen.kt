@@ -218,11 +218,26 @@ fun SaveEditorScreen() {
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column {
-                                    Text(
-                                        text = "🏡 ${slot.farmName} (${slot.farmerName})",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 15.sp
-                                    )
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text(
+                                            text = "🏡 ${slot.farmName} (${slot.farmerName})",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 15.sp
+                                        )
+                                        val isSmapi = slot.folderPath.contains("abc.smapi") || slot.folderPath.contains("zane")
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = if (isSmapi) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.secondaryContainer
+                                        ) {
+                                            Text(
+                                                text = if (isSmapi) "SMAPI" else "Vanilla",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isSmapi) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSecondaryContainer,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
                                     Text(
                                         text = "${slot.season} วันที่ ${slot.day} ปี ${slot.year} | 💰 ${slot.money}g",
                                         fontSize = 12.sp,

@@ -256,10 +256,13 @@ class SaveRescueManager(private val context: Context) {
             bridge.execCommand("chmod -R 777 \"${tempRestoreBase.absolutePath}\"")
 
             val candidateRoots = listOf(
+                "/storage/emulated/0/Android/data/abc.smapi.gameloader/files/Saves",
+                "/storage/emulated/0/Android/data/abc.smapi.gameloader/files/saves",
                 "/storage/emulated/0/Android/data/com.chucklefish.stardewvalley/files/Saves",
                 "/storage/emulated/0/Android/data/com.chucklefish.stardewvalley/files/saves",
                 "/storage/emulated/0/Android/data/com.zane.stardewvalley/files/Saves",
                 "/storage/emulated/0/Android/data/com.zane.stardewvalley/files/saves",
+                "/sdcard/Android/data/abc.smapi.gameloader/files/Saves",
                 "/sdcard/Android/data/com.chucklefish.stardewvalley/files/Saves",
                 "/storage/emulated/0/StardewValley",
                 "/sdcard/StardewValley"

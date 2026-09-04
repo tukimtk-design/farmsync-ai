@@ -181,6 +181,7 @@ class ModInstaller(
             bridge.execCommand("chmod -R 777 ${escapeShellArg(stagingDir.absolutePath)}")
 
             val stardewModDirs = listOf(
+                "/storage/emulated/0/Android/data/abc.smapi.gameloader/files/Mods",
                 "/storage/emulated/0/Android/data/com.chucklefish.stardewvalley/files/Mods",
                 "/storage/emulated/0/Android/data/com.zane.stardewvalley/files/Mods",
                 "/storage/emulated/0/StardewValley/Mods"

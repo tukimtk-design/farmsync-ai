@@ -184,16 +184,22 @@ class ShizukuSaveBridge(private val context: Context) {
         val validRoots = listOf(
             "/storage/emulated/0/Android/data/com.chucklefish.stardewvalley/files/Saves",
             "/storage/emulated/0/Android/data/com.chucklefish.stardewvalley/files/saves",
+            "/storage/emulated/0/Android/data/abc.smapi.gameloader/files/Saves",
+            "/storage/emulated/0/Android/data/abc.smapi.gameloader/files/saves",
             "/storage/emulated/0/Android/data/com.zane.stardewvalley/files/Saves",
             "/storage/emulated/0/Android/data/com.zane.stardewvalley/files/saves",
             "/storage/emulated/0/StardewValley",
             // Path aliases used on Xiaomi/HyperOS and some other devices
             "/sdcard/Android/data/com.chucklefish.stardewvalley/files/Saves",
             "/sdcard/Android/data/com.chucklefish.stardewvalley/files/saves",
+            "/sdcard/Android/data/abc.smapi.gameloader/files/Saves",
+            "/sdcard/Android/data/abc.smapi.gameloader/files/saves",
             "/sdcard/Android/data/com.zane.stardewvalley/files/Saves",
             "/sdcard/Android/data/com.zane.stardewvalley/files/saves",
             "/storage/sdcard0/Android/data/com.chucklefish.stardewvalley/files/Saves",
             "/storage/sdcard0/Android/data/com.chucklefish.stardewvalley/files/saves",
+            "/storage/sdcard0/Android/data/abc.smapi.gameloader/files/Saves",
+            "/storage/sdcard0/Android/data/abc.smapi.gameloader/files/saves",
             "/storage/sdcard0/Android/data/com.zane.stardewvalley/files/Saves",
             "/storage/sdcard0/Android/data/com.zane.stardewvalley/files/saves"
         )
@@ -207,14 +213,20 @@ class ShizukuSaveBridge(private val context: Context) {
         }
 
         val candidatePaths = listOf(
+            "/storage/emulated/0/Android/data/abc.smapi.gameloader/files/Saves",
+            "/storage/emulated/0/Android/data/abc.smapi.gameloader/files/saves",
             "/storage/emulated/0/Android/data/com.chucklefish.stardewvalley/files/Saves",
             "/storage/emulated/0/Android/data/com.chucklefish.stardewvalley/files/saves",
             "/storage/emulated/0/Android/data/com.zane.stardewvalley/files/Saves",
             "/storage/emulated/0/Android/data/com.zane.stardewvalley/files/saves",
             "/storage/emulated/0/StardewValley",
             // Path aliases used on Xiaomi/HyperOS and some other devices
+            "/sdcard/Android/data/abc.smapi.gameloader/files/Saves",
+            "/sdcard/Android/data/abc.smapi.gameloader/files/saves",
             "/sdcard/Android/data/com.chucklefish.stardewvalley/files/Saves",
             "/sdcard/Android/data/com.chucklefish.stardewvalley/files/saves",
+            "/storage/sdcard0/Android/data/abc.smapi.gameloader/files/Saves",
+            "/storage/sdcard0/Android/data/abc.smapi.gameloader/files/saves",
             "/storage/sdcard0/Android/data/com.chucklefish.stardewvalley/files/Saves",
             "/storage/sdcard0/Android/data/com.chucklefish.stardewvalley/files/saves"
         )
@@ -426,6 +438,23 @@ class ShizukuSaveBridge(private val context: Context) {
             execBoundedCommand("cp \"$mainSavePath\" \"$legacyMirror/$folderName\"")
             execBoundedCommand("cp \"$infoSavePath\" \"$legacyMirror/SaveGameInfo\"")
             execBoundedCommand("chmod -R 777 \"/storage/emulated/0/StardewValley\"")
+
+            // Cross-mirror between Vanilla (com.chucklefish.stardewvalley) and SMAPILoader (abc.smapi.gameloader) if slot exists in both
+            val alternativeRoot = if (cleanSlotPath.contains("com.chucklefish.stardewvalley")) {
+                "/storage/emulated/0/Android/data/abc.smapi.gameloader/files/Saves/$folderName"
+            } else if (cleanSlotPath.contains("abc.smapi.gameloader")) {
+                "/storage/emulated/0/Android/data/com.chucklefish.stardewvalley/files/Saves/$folderName"
+            } else null
+
+            if (alternativeRoot != null) {
+                val exists = execBoundedCommand("[ -d \"$alternativeRoot\" ] && echo OK")
+                if (exists.exitCode == 0 && exists.stdout.contains("OK")) {
+                    execBoundedCommand("cp \"$mainSavePath\" \"$alternativeRoot/$folderName\"")
+                    execBoundedCommand("cp \"$infoSavePath\" \"$alternativeRoot/SaveGameInfo\"")
+                    execBoundedCommand("chmod 666 \"$alternativeRoot/$folderName\" \"$alternativeRoot/SaveGameInfo\"")
+                    execBoundedCommand("chmod 777 \"$alternativeRoot\"")
+                }
+            }
 
             // 9. Verify Final
             val finalMainHash = getSha256(mainSavePath)
