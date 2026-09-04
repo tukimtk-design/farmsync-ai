@@ -82,6 +82,16 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
                 category = "Quality of Life"
             ),
             ModDownloadItem(
+                idKey = "thai_language_pack",
+                uniqueId = "Community.ThaiLanguage",
+                name = "ม็อดภาษาไทยสมบูรณ์แบบ 1.6 (Thai Language Mod)",
+                author = "Thai Community",
+                descriptionTh = "แปลภาษาไทยสมบูรณ์แบบ ทั้งเมนู ระบบ เควสต์ ไอเทม และบทสนทนา (Dialogues) ทุกตัวละคร (ต้องใช้ร่วมกับ Content Patcher)",
+                descriptionEn = "Complete Thai localization mod for menus, dialogues, items, and quests. Requires Content Patcher.",
+                nexusUrl = "https://www.nexusmods.com/stardewvalley/mods/6108",
+                category = "ภาษาไทย (Translation)"
+            ),
+            ModDownloadItem(
                 idKey = "cp",
                 uniqueId = "Pathoschild.ContentPatcher",
                 name = "Content Patcher (CP)",
@@ -273,30 +283,65 @@ fun ModManagerScreen(incomingZipUri: Uri? = null, onClearIncomingZip: () -> Unit
         }
 
         if (selectedTab == 0) {
-            Button(
-                onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    zipPickerLauncher.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream", "*/*"))
-                },
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             ) {
-                Text(
-                    text = Strings.get("📂 เลือกไฟล์ .zip ของม็อดในเครื่องเพื่อติดตั้ง", "📂 Install Local Mod .zip"),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
-                )
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            zipPickerLauncher.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream", "*/*"))
+                        },
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
+                    ) {
+                        Text(
+                            text = Strings.get("📂 ติดตั้งม็อดจากไฟล์ .ZIP ในเครื่อง", "📂 Install Mod from Local .ZIP"),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                    }
+
+                    Text(
+                        text = Strings.get(
+                            "💡 คำแนะนำ: สามารถเลือกไฟล์ .zip ม็อดภาษาไทยหรือม็อดอื่นๆ ที่ดาวน์โหลดไว้ในโฟลเดอร์ Download เพื่อติดตั้งเข้าเกมได้ทันที",
+                            "💡 Tip: Select any downloaded .zip mod file to deploy directly to your Stardew Valley Mods folder."
+                        ),
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
-            Text(
-                text = Strings.get(
-                    "เปิด/ปิดการทำงานของม็อดได้ทันที สามารถติดตั้งม็อดได้ไม่จำกัดจำนวน และข้อมูลจะบันทึกคงอยู่ถาวร",
-                    "Enable/disable mods or tap the trash icon to uninstall. Supports unlimited mods with persistent state."
-                ),
-                fontSize = 13.sp,
-                color = Color.Gray
-            )
+            // Info notice about SMAPI for Android
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text("ℹ️", fontSize = 20.sp)
+                    Text(
+                        text = Strings.get(
+                            "การใช้งานม็อดบน Android: ต้องเปิดเกมผ่านแอป SMAPI Stardew Valley ม็อดภาษาไทยและม็อดอื่นๆ จึงจะแสดงผลในเกม",
+                            "Android Mod Notice: Mods only run when launching the game via SMAPI Stardew Valley."
+                        ),
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        lineHeight = 16.sp
+                    )
+                }
+            }
 
             if (installedMods.isEmpty()) {
                 Card(

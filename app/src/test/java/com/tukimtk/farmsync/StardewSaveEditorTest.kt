@@ -110,4 +110,31 @@ class StardewSaveEditorTest {
         assertTrue("farmerTeam block must have 999999", teamBlock.contains("<money>999999</money>"))
         assertTrue("farmerTeam totalMoneyEarned must be updated", teamBlock.contains("<totalMoneyEarned>1049999</totalMoneyEarned>"))
     }
+
+    @Test
+    fun `test that individualMoney is also updated in farmerTeam`() {
+        val saveXml = """
+            <SaveGame>
+                <player>
+                    <name>FarmerTuki</name>
+                    <money>500</money>
+                </player>
+                <farmerTeam>
+                    <money>500</money>
+                    <individualMoney>
+                        <item>
+                            <key><long>12345678</long></key>
+                            <value><int>500</int></value>
+                        </item>
+                    </individualMoney>
+                </farmerTeam>
+            </SaveGame>
+        """.trimIndent()
+
+        val edits = EditableSaveData(money = 999999)
+        val modified = editor.applyEditsToXml(saveXml, edits)
+
+        assertTrue(modified.contains("<money>999999</money>"))
+        assertTrue(modified.contains("<value><int>999999</int></value>"))
+    }
 }

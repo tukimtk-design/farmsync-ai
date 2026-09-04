@@ -3,6 +3,7 @@ package com.tukimtk.farmsync.mods
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
+import com.tukimtk.farmsync.game.stardew.ShizukuSaveBridge
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.*
@@ -61,7 +62,8 @@ class ModInstallerTest {
         `when`(uri.lastPathSegment).thenReturn("test_mod.zip")
         `when`(resolver.openInputStream(uri)).thenReturn(bais)
 
-        val installer = ModInstaller(context)
+        val bridge = ShizukuSaveBridge(context).apply { permissionOverride = false }
+        val installer = ModInstaller(context, bridge)
         val result = installer.installModFromUri(uri)
 
         // Cannot fully test Shizuku deployment logic in unit tests without extensive mocking

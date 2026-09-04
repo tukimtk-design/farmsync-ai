@@ -34,7 +34,10 @@ fun compareVersions(v1: String, v2: String): Int {
     return 0
 }
 
-class ModInstaller(private val context: Context) {
+class ModInstaller(
+    private val context: Context,
+    private val bridge: ShizukuSaveBridge = ShizukuSaveBridge(context)
+) {
 
     fun installModFromUri(uri: Uri): ModInstallResult {
         return try {
@@ -164,7 +167,6 @@ class ModInstaller(private val context: Context) {
             val safeFolderName = uniqueId.replace(Regex("[^a-zA-Z0-9_\\-\\.]"), "_").ifBlank { finalModName.replace(" ", "_") }
 
             // Deploy via Shizuku
-            val bridge = ShizukuSaveBridge(context).apply { permissionOverride = false }
             if (!bridge.isPermissionGranted()) {
                 return ModInstallResult(false, uniqueId, finalModName, author, version, fileCount, "", "Shizuku permission not granted. Cannot deploy mod.")
             }
@@ -184,7 +186,7 @@ class ModInstaller(private val context: Context) {
                 // Remove existing if any
                 bridge.execCommand("rm -rf ${escapeShellArg(targetPath)}")
                 // Copy new files
-                val res = bridge.execCommand("cp -r ${escapeShellArg(sourceModFolder.absolutePath)} ${escapeShellArg(targetPath)}")
+                bridge.execCommand("cp -r ${escapeShellArg(sourceModFolder.absolutePath)} ${escapeShellArg(targetPath)}")
                 
                 // Verify copy
                 val checkRes = bridge.execCommand("[ -d ${escapeShellArg(targetPath)} ] && echo OK")
@@ -240,7 +242,6 @@ class ModInstaller(private val context: Context) {
 
     fun toggleModState(folderName: String, isEnabled: Boolean): Boolean {
         if (folderName.isBlank()) return false
-        val bridge = ShizukuSaveBridge(context).apply { permissionOverride = false }
         if (!bridge.isPermissionGranted()) return false
 
         val stardewModDirs = listOf(

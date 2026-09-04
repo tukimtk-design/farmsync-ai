@@ -18,34 +18,67 @@ fun SuccessFeedbackDialog(
     message: String,
     onDismiss: () -> Unit
 ) {
+    val isError = message.contains("❌") || 
+                  message.contains("Error", ignoreCase = true) || 
+                  message.contains("ล้มเหลว") || 
+                  message.contains("failed", ignoreCase = true) ||
+                  message.contains("not granted", ignoreCase = true)
+
+    val iconColor = if (isError) MaterialTheme.colorScheme.error else Color(0xFF4CAF50)
+    val containerBg = if (isError) MaterialTheme.colorScheme.errorContainer else Color(0xFF2E7D32).copy(alpha = 0.2f)
+    val symbol = if (isError) "✕" else "✓"
+
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
         title = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer,
+                    color = containerBg,
                     shape = RoundedCornerShape(20.dp),
                     modifier = Modifier.size(36.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text("✓", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                        Text(
+                            text = symbol,
+                            color = iconColor,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp
+                        )
                     }
                 }
-                Text(title, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text(
+                    text = title, 
+                    fontWeight = FontWeight.Bold, 
+                    fontSize = 18.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
         },
         text = {
-            Text(message, style = MaterialTheme.typography.bodyMedium, color = Color.DarkGray)
+            Text(
+                text = message, 
+                style = MaterialTheme.typography.bodyLarge, 
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = 22.sp
+            )
         },
         confirmButton = {
             Button(
                 onClick = onDismiss,
-                shape = RoundedCornerShape(10.dp)
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    contentColor = if (isError) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary
+                )
             ) {
-                Text(Strings.get("ตกลง", "OK"))
+                Text(
+                    text = Strings.get("เข้าใจแล้ว", "OK"),
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     )

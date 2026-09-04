@@ -75,6 +75,15 @@ class StardewSaveEditor {
                         modifiedTeam = replaceFirstTag(modifiedTeam, "totalMoneyEarned", (edits.money + 50000).toString())
                     }
 
+                    // Update individualMoney in case separate wallets are active
+                    val indMoneyRegex = Regex("<individualMoney>(.*?)</individualMoney>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+                    val indMoneyMatch = indMoneyRegex.find(modifiedTeam)
+                    if (indMoneyMatch != null) {
+                        val indContent = indMoneyMatch.groupValues[1]
+                        val updatedIndContent = indContent.replace(Regex("<int>\\d+</int>", RegexOption.IGNORE_CASE), "<int>${edits.money}</int>")
+                        modifiedTeam = modifiedTeam.replaceRange(indMoneyMatch.range, "<individualMoney>$updatedIndContent</individualMoney>")
+                    }
+
                     result = beforeTeam + modifiedTeam + afterTeam
                 }
             }

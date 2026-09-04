@@ -39,14 +39,14 @@ class ShizukuSaveBridge(private val context: Context) {
                 Array<String>::class.java,
                 String::class.java
             ).apply { isAccessible = true }
-        } catch (_: Exception) {}
+        } catch (_: Throwable) {}
     }
 
     fun isBinderAlive(): Boolean {
         if (permissionOverride != null) return true
         return try {
             Shizuku.pingBinder()
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
             false
         }
     }
@@ -55,7 +55,7 @@ class ShizukuSaveBridge(private val context: Context) {
         if (permissionOverride != null) return permissionOverride!!
         return try {
             isBinderAlive() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
             false
         }
     }
@@ -137,12 +137,12 @@ class ShizukuSaveBridge(private val context: Context) {
 
             val stdoutThread = Thread {
                 try {
-                    stdoutStr = process.inputStream.bufferedReader().use { it.readText().take(1024 * 512).trim() }
+                    stdoutStr = process.inputStream.bufferedReader().use { it.readText().take(1024 * 1024 * 16).trim() }
                 } catch (_: Exception) {}
             }
             val stderrThread = Thread {
                 try {
-                    stderrStr = process.errorStream.bufferedReader().use { it.readText().take(1024 * 512).trim() }
+                    stderrStr = process.errorStream.bufferedReader().use { it.readText().take(1024 * 1024 * 16).trim() }
                 } catch (_: Exception) {}
             }
 
@@ -345,24 +345,32 @@ class ShizukuSaveBridge(private val context: Context) {
                 }
             }
 
-            // 1. Encode
-            val originalMainRes = execBoundedCommand("cat \"$mainSavePath\"")
-            val originalInfoRes = execBoundedCommand("cat \"$infoSavePath\"")
-            if (originalMainRes.exitCode != 0 || originalInfoRes.exitCode != 0) return SaveWriteResult.UnexpectedFailure
+            // App staging files: use externalFilesDir so Shizuku shell (uid 2000) has permission to read and copy
+            val tempDir = java.io.File(context.getExternalFilesDir("shizuku_temp") ?: context.cacheDir, "shizuku_temp").apply { mkdirs() }
+            val tempMain = java.io.File(tempDir, folderName)
+            val tempInfo = java.io.File(tempDir, "SaveGameInfo")
 
-            val updatedMain = editor.applyEditsToXml(originalMainRes.stdout.ifBlank { "<SaveGame></SaveGame>" }, edits)
-            val updatedInfo = editor.applyEditsToXml(originalInfoRes.stdout.ifBlank { updatedMain }, edits)
+            // 1. Copy live files to app-accessible temp dir for complete and lossless reading
+            val pullMainRes = execBoundedCommand("cp \"$mainSavePath\" \"${tempMain.absolutePath}\"")
+            val pullInfoRes = execBoundedCommand("cp \"$infoSavePath\" \"${tempInfo.absolutePath}\"")
+            if (pullMainRes.exitCode != 0 || pullInfoRes.exitCode != 0 || !tempMain.exists() || !tempInfo.exists()) {
+                return SaveWriteResult.UnexpectedFailure
+            }
 
-            // 2. SHA-256 Intended
+            val originalMainXml = tempMain.readText(Charsets.UTF_8)
+            val originalInfoXml = tempInfo.readText(Charsets.UTF_8)
+
+            val updatedMain = editor.applyEditsToXml(originalMainXml.ifBlank { "<SaveGame></SaveGame>" }, edits)
+            val updatedInfo = editor.applyEditsToXml(originalInfoXml.ifBlank { updatedMain }, edits)
+
+            // 2. Write updated contents to temp files
+            tempMain.writeText(updatedMain, Charsets.UTF_8)
+            tempInfo.writeText(updatedInfo, Charsets.UTF_8)
+
             val intendedMainHash = getSha256Str(updatedMain)
             val intendedInfoHash = getSha256Str(updatedInfo)
 
-            // App staging files: use externalFilesDir so Shizuku shell (uid 2000) has permission to read and copy
-            val tempDir = java.io.File(context.getExternalFilesDir("shizuku_temp") ?: context.cacheDir, "shizuku_temp").apply { mkdirs() }
-            val tempMain = java.io.File(tempDir, folderName).apply { writeText(updatedMain) }
-            val tempInfo = java.io.File(tempDir, "SaveGameInfo").apply { writeText(updatedInfo) }
-
-            // 3. Staged Copy
+            // 3. Staged Copy to target directory
             val stagedMainPath = "$cleanSlotPath/${folderName}_staged"
             val stagedInfoPath = "$cleanSlotPath/SaveGameInfo_staged"
 
@@ -390,7 +398,8 @@ class ShizukuSaveBridge(private val context: Context) {
                     val backups = rescueManager.listSnapshots()
                     val latest = backups.firstOrNull { it.farmName == folderName.substringBefore("_") }
                     if (latest != null) {
-                        val ok = rescueManager.restoreSnapshot(latest, java.io.File(cleanSlotPath).parentFile)
+                        val parent = java.io.File(cleanSlotPath).parentFile ?: java.io.File(cleanSlotPath)
+                        val ok = rescueManager.restoreSnapshot(latest, parent)
                         if (!ok) return SaveWriteResult.RollbackFailed
                     } else {
                         return SaveWriteResult.RollbackFailed
@@ -401,6 +410,12 @@ class ShizukuSaveBridge(private val context: Context) {
                 return SaveWriteResult.SaveGameInfoReplaceFailed
             }
 
+            // Also synchronize backup _old files if they exist so Stardew Valley doesn't restore old 500g
+            val oldMainPath = "${mainSavePath}_old"
+            val oldInfoPath = "${infoSavePath}_old"
+            execBoundedCommand("[ -f \"$oldMainPath\" ] && cp \"$mainSavePath\" \"$oldMainPath\"")
+            execBoundedCommand("[ -f \"$oldInfoPath\" ] && cp \"$infoSavePath\" \"$oldInfoPath\"")
+
             // 9. Verify Final
             val finalMainHash = getSha256(mainSavePath)
             val finalInfoHash = getSha256(infoSavePath)
@@ -409,11 +424,16 @@ class ShizukuSaveBridge(private val context: Context) {
             if (finalInfoHash != intendedInfoHash) return SaveWriteResult.VerificationFailed
 
             // 10. Reload physical
-            val reloadInfoRes = execBoundedCommand("cat \"$infoSavePath\"")
-            if (reloadInfoRes.exitCode != 0) return SaveWriteResult.ReloadFailed
+            val reloadInfoXml = try {
+                execBoundedCommand("cp \"$infoSavePath\" \"${tempInfo.absolutePath}\"")
+                tempInfo.readText(Charsets.UTF_8)
+            } catch (_: Exception) {
+                ""
+            }
+            if (reloadInfoXml.isBlank()) return SaveWriteResult.ReloadFailed
 
             try {
-                val parsed = parseInfoContent(folderName, cleanSlotPath, reloadInfoRes.stdout)
+                val parsed = parseInfoContent(folderName, cleanSlotPath, reloadInfoXml)
                 // 11. Verify fields
                 if (parsed.money != edits.money) return SaveWriteResult.VerificationFailed
             } catch (e: Exception) {
