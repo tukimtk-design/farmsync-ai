@@ -415,11 +415,17 @@ class ShizukuSaveBridge(private val context: Context) {
             execBoundedCommand("[ -f \"$oldMainPath\" ] && cp \"$mainSavePath\" \"$oldMainPath\"")
             execBoundedCommand("[ -f \"$oldInfoPath\" ] && cp \"$infoSavePath\" \"$oldInfoPath\"")
 
-            // Ensure game process (u0_aXXX) has full read/write access to saves
             execBoundedCommand("chmod 666 \"$mainSavePath\" \"$infoSavePath\"")
             execBoundedCommand("[ -f \"$oldMainPath\" ] && chmod 666 \"$oldMainPath\"")
             execBoundedCommand("[ -f \"$oldInfoPath\" ] && chmod 666 \"$oldInfoPath\"")
             execBoundedCommand("chmod 777 \"$cleanSlotPath\"")
+
+            // Mirror to legacy /storage/emulated/0/StardewValley directory so if game prompts for SAF picker, it is ready outside Scoped Storage
+            val legacyMirror = "/storage/emulated/0/StardewValley/$folderName"
+            execBoundedCommand("mkdir -p \"$legacyMirror\"")
+            execBoundedCommand("cp \"$mainSavePath\" \"$legacyMirror/$folderName\"")
+            execBoundedCommand("cp \"$infoSavePath\" \"$legacyMirror/SaveGameInfo\"")
+            execBoundedCommand("chmod -R 777 \"/storage/emulated/0/StardewValley\"")
 
             // 9. Verify Final
             val finalMainHash = getSha256(mainSavePath)

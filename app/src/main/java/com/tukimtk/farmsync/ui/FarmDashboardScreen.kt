@@ -119,6 +119,9 @@ fun FarmDashboardScreen() {
             }
         }
 
+        // Save Backup History & 1-Click Restore Section
+        SaveBackupHistoryCard()
+
         // Devices Connected
         Card(
             modifier = Modifier.fillMaxWidth(),

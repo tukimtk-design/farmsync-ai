@@ -270,32 +270,37 @@ fun SaveEditorScreen() {
                     // Start state
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
+                Button(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        refreshSaves()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Text(Strings.get("🔄 สแกนหาเซฟเกมในเครื่องใหม่", "🔄 Rescan Save Slots"), fontWeight = FontWeight.Bold)
+                }
+
+                if (scanResult !is SaveScanResult.SavesFound) {
+                    OutlinedButton(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             folderPicker.launch(null)
                         },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(8.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
                     ) {
-                        Text(Strings.get("📂 โฟลเดอร์สำรอง (SAF)", "📂 Manual SAF Folder"))
-                    }
-
-                    Button(
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            refreshSaves()
-                        },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
-                    ) {
-                        Text(Strings.get("🔄 สแกนใหม่", "🔄 Rescan"))
+                        Text(Strings.get("📂 เลือกโฟลเดอร์ด้วยตนเอง (กรณีไม่ได้ใช้ Shizuku)", "📂 Manual SAF Folder (Non-Shizuku)"))
                     }
                 }
             }
         }
+
+        // Save Backup History & 1-Click Restore
+        com.tukimtk.farmsync.ui.components.SaveBackupHistoryCard(
+            onRestored = { refreshSaves() }
+        )
 
         // 1. Basic Info Card
         Card(
