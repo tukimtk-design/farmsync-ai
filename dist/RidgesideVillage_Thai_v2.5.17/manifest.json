@@ -1,0 +1,18 @@
+{
+  "Name": "Ridgeside Village - Thai Translation",
+  "Author": "Automated Builder",
+  "Version": "2.5.17",
+  "Description": "Thai Translation for Ridgeside Village 2.5.17",
+  "UniqueID": "com.tukimtk.rsv.thai",
+  "MinimumApiVersion": "4.0.0",
+  "UpdateKeys": [],
+  "ContentPackFor": {
+    "UniqueID": "Pathoschild.ContentPatcher"
+  },
+  "Dependencies": [
+    {
+      "UniqueID": "Rafseazz.RSVCP",
+      "IsRequired": true
+    }
+  ]
+}
